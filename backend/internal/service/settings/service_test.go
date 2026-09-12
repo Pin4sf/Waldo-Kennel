@@ -54,8 +54,16 @@ func (s *reasoningSettingsStore) SetReasoningVerificationForGeneration(_ context
 	return true, nil
 }
 
-func (s *reasoningSettingsStore) SetRepositoryContextLimits(_ context.Context, maxFiles, maxBytes, maxVisited *int64, _ time.Time) error {
-	s.snapshot.RepositoryContextMaxFiles, s.snapshot.RepositoryContextMaxBytes, s.snapshot.RepositoryContextMaxVisited = maxFiles, maxBytes, maxVisited
+func (s *reasoningSettingsStore) PatchRepositoryContextLimits(_ context.Context, patch RepositoryContextLimitsPatch, _ time.Time) error {
+	if patch.MaxFiles.Present {
+		s.snapshot.RepositoryContextMaxFiles = patch.MaxFiles.Value
+	}
+	if patch.MaxBytes.Present {
+		s.snapshot.RepositoryContextMaxBytes = patch.MaxBytes.Value
+	}
+	if patch.MaxVisited.Present {
+		s.snapshot.RepositoryContextMaxVisited = patch.MaxVisited.Value
+	}
 	return nil
 }
 
@@ -227,27 +235,61 @@ func TestRepositoryContextLimitsUsesBuiltInDefaultWhenUnconfigured(t *testing.T)
 	}
 }
 
-func TestSetRepositoryContextLimitsRoundTripsAndSupportsUncapped(t *testing.T) {
+func TestPatchRepositoryContextLimitsPreservesOmittedClearsNullAndSupportsUncapped(t *testing.T) {
 	store := &reasoningSettingsStore{}
 	svc := New(store, nil, nil)
 
-	custom, uncapped := int64(500), int64(0)
-	if _, err := svc.SetRepositoryContextLimits(context.Background(), &custom, &uncapped, &custom); err != nil {
-		t.Fatalf("SetRepositoryContextLimits() error = %v", err)
+	files, bytes, visited, uncapped := int64(500), int64(8000), int64(900), int64(0)
+	full := RepositoryContextLimitsPatch{
+		MaxFiles:   RepositoryContextLimitPatch{Present: true, Value: &files},
+		MaxBytes:   RepositoryContextLimitPatch{Present: true, Value: &bytes},
+		MaxVisited: RepositoryContextLimitPatch{Present: true, Value: &visited},
+	}
+	if _, err := svc.PatchRepositoryContextLimits(context.Background(), full); err != nil {
+		t.Fatalf("initial PatchRepositoryContextLimits() error = %v", err)
+	}
+	patch := RepositoryContextLimitsPatch{
+		MaxBytes:   RepositoryContextLimitPatch{Present: true, Value: nil},
+		MaxVisited: RepositoryContextLimitPatch{Present: true, Value: &uncapped},
+	}
+	if _, err := svc.PatchRepositoryContextLimits(context.Background(), patch); err != nil {
+		t.Fatalf("partial PatchRepositoryContextLimits() error = %v", err)
 	}
 	maxFiles, maxBytes, maxVisited, err := svc.RepositoryContextLimits(context.Background())
 	if err != nil {
 		t.Fatalf("RepositoryContextLimits() error = %v", err)
 	}
-	if int64(maxFiles) != custom || maxBytes != 0 || int64(maxVisited) != custom {
-		t.Fatalf("configured limits = (%d, %d, %d), want (%d, 0 [uncapped], %d)", maxFiles, maxBytes, maxVisited, custom, custom)
+	if int64(maxFiles) != files || int64(maxBytes) != DefaultRepositoryContextMaxBytes || maxVisited != 0 {
+		t.Fatalf("configured limits = (%d, %d, %d), want (%d preserved, %d default, 0 uncapped)", maxFiles, maxBytes, maxVisited, files, DefaultRepositoryContextMaxBytes)
 	}
 
 	snapshot, err := store.GetAppSettings(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.RepositoryContextMaxBytes == nil || *snapshot.RepositoryContextMaxBytes != 0 {
-		t.Fatalf("persisted uncapped bound = %v, want a stored explicit zero (not nil/default)", snapshot.RepositoryContextMaxBytes)
+	if snapshot.RepositoryContextMaxFiles == nil || *snapshot.RepositoryContextMaxFiles != files {
+		t.Fatalf("omitted maxFiles = %v, want preserved %d", snapshot.RepositoryContextMaxFiles, files)
+	}
+	if snapshot.RepositoryContextMaxBytes != nil {
+		t.Fatalf("cleared maxBytes = %v, want nil/default", snapshot.RepositoryContextMaxBytes)
+	}
+	if snapshot.RepositoryContextMaxVisited == nil || *snapshot.RepositoryContextMaxVisited != 0 {
+		t.Fatalf("persisted uncapped bound = %v, want a stored explicit zero (not nil/default)", snapshot.RepositoryContextMaxVisited)
+	}
+}
+
+func TestPatchRepositoryContextLimitsRejectsNegativeWithoutMutation(t *testing.T) {
+	files := int64(12)
+	store := &reasoningSettingsStore{snapshot: Snapshot{RepositoryContextMaxFiles: &files}}
+	svc := New(store, nil, nil)
+	negative := int64(-1)
+	_, err := svc.PatchRepositoryContextLimits(context.Background(), RepositoryContextLimitsPatch{
+		MaxFiles: RepositoryContextLimitPatch{Present: true, Value: &negative},
+	})
+	if err == nil {
+		t.Fatal("negative limit was accepted")
+	}
+	if store.snapshot.RepositoryContextMaxFiles == nil || *store.snapshot.RepositoryContextMaxFiles != files {
+		t.Fatalf("negative patch mutated stored maxFiles: %v", store.snapshot.RepositoryContextMaxFiles)
 	}
 }

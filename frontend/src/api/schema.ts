@@ -3536,12 +3536,9 @@ export interface components {
             reason: string;
         };
         ControllersUpdateRepositoryContextLimitsRequest: {
-            /** Format: int64 */
-            maxBytes: number;
-            /** Format: int64 */
-            maxFiles: number;
-            /** Format: int64 */
-            maxVisited: number;
+            maxBytes?: null | number;
+            maxFiles?: null | number;
+            maxVisited?: null | number;
         };
         ConversationAccountPayload: {
             authMode?: string;

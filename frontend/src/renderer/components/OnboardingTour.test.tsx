@@ -58,6 +58,14 @@ describe("OnboardingTour", () => {
 			settings: {
 				defaultSessionMode: "tui",
 				chatHarnesses: ["codex"],
+				repositoryContext: {
+					maxFiles: null,
+					maxBytes: null,
+					maxVisited: null,
+					effectiveMaxFiles: 32,
+					effectiveMaxBytes: 96 * 1024,
+					effectiveMaxVisited: 20_000,
+				},
 				reasoning: {
 					provider: "openai",
 					model: "",

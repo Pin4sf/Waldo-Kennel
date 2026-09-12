@@ -172,7 +172,11 @@ func (s *Service) StartPlanning(ctx context.Context, outcomeID domain.OutcomeID,
 		}); ok {
 			briefSource = candidate
 		}
-		snapshot, err = intelligencesvc.BuildRepositoryContext(ctx, project, briefSource, s.repositoryContextLimits(ctx))
+		limits, limitErr := s.repositoryContextLimits(ctx)
+		if limitErr != nil {
+			return PlanningView{}, limitErr
+		}
+		snapshot, err = intelligencesvc.BuildRepositoryContext(ctx, project, briefSource, limits)
 		if err != nil {
 			return PlanningView{}, err
 		}

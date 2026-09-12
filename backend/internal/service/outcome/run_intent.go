@@ -548,7 +548,16 @@ func (s *Service) continueOneRun(ctx context.Context, intent domain.OutcomeRunIn
 	if schedule.NextRunnableID.IsZero() {
 		return nil
 	}
-	requestKey := runContinuationKey(intent, schedule.NextRunnableID)
+	requestKey, authorized, err := s.runContinuationRequestKey(ctx, intent, schedule)
+	if err != nil {
+		return err
+	}
+	if !authorized {
+		// A terminal Attempt is retryable by the scheduler, but the durable run
+		// authorization does not silently mean "retry providers forever". Wait
+		// until recovery records the owner's replacement decision.
+		return nil
+	}
 	attemptView, err := s.StartAttempt(ctx, intent.OutcomeID, StartAttemptInput{
 		PlanRevisionID: intent.PlanRevisionID,
 		WorkUnitID:     schedule.NextRunnableID,
@@ -658,6 +667,72 @@ func prelaunchFailureFromAttempt(attempt AttemptView, unitID domain.WorkUnitID) 
 // while the same authorization can never admit it twice.
 func runContinuationKey(intent domain.OutcomeRunIntent, unitID domain.WorkUnitID) string {
 	return fmt.Sprintf("run:%s:%d:%s", intent.OutcomeID, intent.Generation, unitID)
+}
+
+// runContinuationRequestKey keeps initial admission idempotent while allowing
+// an explicitly recovered terminal Attempt to produce one fresh replacement.
+// The predecessor Attempt ID is the replacement's replay identity: repeated
+// reconcile ticks and duplicate recovery clicks converge on the same new row,
+// while a later failed replacement names a different predecessor.
+func (s *Service) runContinuationRequestKey(ctx context.Context, intent domain.OutcomeRunIntent, schedule ScheduleView) (string, bool, error) {
+	base := runContinuationKey(intent, schedule.NextRunnableID)
+	latest, replacementRequired, err := s.replacementAdmission(ctx, intent.OutcomeID, intent, schedule)
+	if err != nil {
+		return "", false, err
+	}
+	if latest.ID.IsZero() {
+		return base, true, nil
+	}
+	if replacementRequired {
+		return "", false, nil
+	}
+	return base + ":replacement:" + latest.ID.String(), true, nil
+}
+
+// replacementAdmission asks whether a scheduler-retryable WorkUnit has the
+// explicit recovery receipt required to replace its latest terminal Attempt.
+// It returns a zero predecessor for first admission.
+func (s *Service) replacementAdmission(ctx context.Context, outcomeID domain.OutcomeID, intent domain.OutcomeRunIntent, schedule ScheduleView) (domain.Attempt, bool, error) {
+	var attempts []domain.Attempt
+	for _, entry := range schedule.WorkUnits {
+		if entry.WorkUnit.ID == schedule.NextRunnableID {
+			attempts = entry.Attempts
+			break
+		}
+	}
+	if len(attempts) == 0 {
+		return domain.Attempt{}, false, nil
+	}
+	latest := attempts[0]
+	for _, attempt := range attempts[1:] {
+		if attempt.Number > latest.Number {
+			latest = attempt
+		}
+	}
+	// A newer owner command is its own authorization generation, so an Attempt
+	// from an older generation is not a retry within this one.
+	if latest.RunIntentGeneration != intent.Generation {
+		return domain.Attempt{}, false, nil
+	}
+	view, err := s.GetAttempt(ctx, outcomeID, latest.ID)
+	if err != nil {
+		return domain.Attempt{}, false, err
+	}
+	// Proven prelaunch failures reuse the original request key so the existing
+	// continuation recovery path can validate their typed observation and copy
+	// its actionable refusal onto run intent. No provider crossed the boundary,
+	// so this is not an execution retry.
+	for _, observation := range view.Observations {
+		if systemOwnedPrelaunchObservationKind(observation.Kind) {
+			return domain.Attempt{}, false, nil
+		}
+	}
+	for _, receipt := range view.Receipts {
+		if receipt.Resolution == domain.RecoveryReplacement {
+			return latest, false, nil
+		}
+	}
+	return latest, true, nil
 }
 
 // refuseAdmissionAgainstRunIntent stops a new Attempt while the owner has

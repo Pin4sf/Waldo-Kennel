@@ -20,12 +20,15 @@ export function MissionPlanView({
 	criterionText,
 	attempts,
 	onOpenAttempt,
+	graphOnly = false,
 }: {
 	workUnits: Unit[];
 	schedule?: Schedule;
 	criterionText?: (id: string) => string | undefined;
 	attempts?: AttemptRecord[];
 	onOpenAttempt?: (attempt: AttemptRecord) => void;
+	/** Execution embeds only the live topology. Plan detail remains in Plan. */
+	graphOnly?: boolean;
 }) {
 	const { t } = useTranslation();
 	const [view, setView] = useState<"graph" | "table">("graph");
@@ -41,7 +44,7 @@ export function MissionPlanView({
 	return (
 		<section className="flex min-w-0 flex-col gap-3" data-testid="mission-plan-view">
 			<div className="flex gap-1" role="group" aria-label={t("mission.plan")}>
-				{(["graph", "table"] as const).map((mode) => (
+				{!graphOnly && (["graph", "table"] as const).map((mode) => (
 					<Button key={mode} size="sm" variant="ghost" aria-pressed={view === mode} onClick={() => setView(mode)}>
 						{t(`mission.${mode}`)}
 					</Button>
@@ -54,14 +57,14 @@ export function MissionPlanView({
                         <DialogDescription>{t(schedule ? "outcome.missionGraph.serialNote" : "outcome.missionGraph.proposedNote")}</DialogDescription>
                         <div className="min-h-0 flex-1 overflow-auto p-4">
                             <MissionWorkUnitGraph workUnits={units} schedule={schedule} criterionText={criterionText} selectedWorkUnitId={selected?.id} onSelectWorkUnit={setSelectedId} />
-                            {selected && <section className="mt-6 border-t border-border pt-4"><h3 className="font-medium">{selected.title}</h3><p className="mt-2 text-sm">{selected.outputSummary}</p><ApprovedChecks unit={selected} criterionText={criterionText} /></section>}
+							{!graphOnly && selected && <section className="mt-6 border-t border-border pt-4"><h3 className="font-medium">{selected.title}</h3><p className="mt-2 text-sm">{selected.outputSummary}</p><ApprovedChecks unit={selected} criterionText={criterionText} /></section>}
                         </div>
                     </DialogContent>
                 </Dialog>
 			</div>
-			<div className="space-y-3">{units.map(unit => <div key={unit.id}><p className="text-sm font-medium">{unit.title}</p><ApprovedChecks unit={unit} criterionText={criterionText} /></div>)}</div>
+			{!graphOnly && <div className="space-y-3">{units.map(unit => <div key={unit.id}><p className="text-sm font-medium">{unit.title}</p><ApprovedChecks unit={unit} criterionText={criterionText} /></div>)}</div>}
             {/* Keep both views mounted to preserve graph zoom, focus and scroll on refresh. */}
-			<div hidden={view !== "graph"} className="overflow-auto p-1">
+			<div hidden={!graphOnly && view !== "graph"} className="overflow-auto p-1">
 				<MissionWorkUnitGraph
 					workUnits={units}
 					schedule={schedule}
@@ -70,7 +73,7 @@ export function MissionPlanView({
 					onSelectWorkUnit={setSelectedId}
 				/>
 			</div>
-			<div hidden={view !== "table"} className="overflow-auto">
+			{!graphOnly && <div hidden={view !== "table"} className="overflow-auto">
 				<table className="w-full border-collapse text-left text-xs">
 					<caption className="pb-2 text-left text-muted-foreground">
 						{t(schedule ? "outcome.missionGraph.serialNote" : "outcome.missionGraph.proposedNote")}
@@ -130,8 +133,8 @@ export function MissionPlanView({
 						})}
 					</tbody>
 				</table>
-			</div>
-			{selected ? (
+			</div>}
+			{!graphOnly && (selected ? (
 					<section className="border-t border-border pt-3" aria-label={selected.title} data-testid="mission-unit-detail">
 						<h3 className="text-sm font-medium break-words">{selected.title}</h3>
 						<p className="mt-1 text-2xs text-muted-foreground">
@@ -230,7 +233,7 @@ export function MissionPlanView({
 				</section>
 			) : (
 				<p className="text-xs text-muted-foreground">{t("mission.selectUnit")}</p>
-			)}
+			))}
 		</section>
 	);
 }

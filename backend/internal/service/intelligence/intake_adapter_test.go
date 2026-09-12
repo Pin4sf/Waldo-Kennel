@@ -1,11 +1,33 @@
 package intelligence
 
 import (
+	"context"
+	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
+
+type countingIntelligenceProvider struct{ analyzeCalls int }
+
+func (*countingIntelligenceProvider) ID() domain.IntelligenceProviderID { return "counting-test" }
+func (p *countingIntelligenceProvider) AnalyzeContract(context.Context, ports.ContractIntelligenceRequest) (ports.ContractIntelligenceResponse, error) {
+	p.analyzeCalls++
+	return ports.ContractIntelligenceResponse{}, errors.New("provider must not be called")
+}
+func (*countingIntelligenceProvider) DraftPlan(context.Context, ports.PlanIntelligenceRequest) (ports.PlanIntelligenceResponse, error) {
+	return ports.PlanIntelligenceResponse{}, errors.New("not used")
+}
+
+type failingRepositoryContextLimits struct{ err error }
+
+func (f failingRepositoryContextLimits) RepositoryContextLimits(context.Context) (int, int, int, error) {
+	return 0, 0, 0, f.err
+}
 
 func TestDigestContractRequestIncludesRepositoryContext(t *testing.T) {
 	base := ports.ContractIntelligenceRequest{
@@ -39,5 +61,29 @@ func TestDigestContractRequestIncludesRepositoryContext(t *testing.T) {
 	}
 	if first == second {
 		t.Fatalf("repository context did not affect contract input digest: %q", first)
+	}
+}
+
+func TestIntakeAnalyzerRefusesSettingsReadFailureBeforeProviderContext(t *testing.T) {
+	ctx := context.Background()
+	store := sqlitetest.MustOpen(t)
+	project := domain.ProjectRecord{ID: "limits-error-project", Path: t.TempDir(), DisplayName: "Limits error", RegisteredAt: time.Now().UTC()}
+	if err := store.UpsertProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	provider := &countingIntelligenceProvider{}
+	want := errors.New("settings database unavailable")
+	analyzer := NewIntakeAnalyzer(provider, store, nil).
+		WithRepositoryContextSource(store).
+		WithRepositoryContextLimits(failingRepositoryContextLimits{err: want})
+
+	_, err := analyzer.Analyze(ctx, ports.IntakeAnalysisInput{Session: domain.IntakeSession{
+		ID: "intake-limits-error", ProjectID: domain.ProjectID(project.ID), Statement: "Inspect the repository safely",
+	}})
+	if !errors.Is(err, want) || !strings.Contains(err.Error(), "resolve repository-context limits") {
+		t.Fatalf("Analyze() error = %v, want surfaced settings failure", err)
+	}
+	if provider.analyzeCalls != 0 {
+		t.Fatalf("provider calls = %d, want zero before repository context is sent", provider.analyzeCalls)
 	}
 }

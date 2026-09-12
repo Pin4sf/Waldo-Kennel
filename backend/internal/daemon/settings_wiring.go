@@ -41,12 +41,17 @@ func (s settingsStore) GetAppSettings(ctx context.Context) (settingssvc.Snapshot
 	}, nil
 }
 
-func (s settingsStore) SetRepositoryContextLimits(
+func (s settingsStore) PatchRepositoryContextLimits(
 	ctx context.Context,
-	maxFiles, maxBytes, maxVisited *int64,
+	patch settingssvc.RepositoryContextLimitsPatch,
 	now time.Time,
 ) error {
-	return s.store.SetRepositoryContextLimits(ctx, maxFiles, maxBytes, maxVisited, now)
+	return s.store.PatchRepositoryContextLimits(ctx,
+		patch.MaxFiles.Present, patch.MaxFiles.Value,
+		patch.MaxBytes.Present, patch.MaxBytes.Value,
+		patch.MaxVisited.Present, patch.MaxVisited.Value,
+		now,
+	)
 }
 
 func (s settingsStore) SetReasoningSettings(ctx context.Context, provider, model, effort string, now time.Time) error {

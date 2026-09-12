@@ -5038,6 +5038,23 @@ func TestSpawn_HookPATHPinUnavailable(t *testing.T) {
 	}
 }
 
+func TestSpawnAndRestore_PinHookPATHForPackagedDaemonSibling(t *testing.T) {
+	dir := t.TempDir()
+	daemonExe := filepath.Join(dir, "kennel-daemon")
+	if err := os.WriteFile(filepath.Join(dir, "kennel"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	want := dir + string(os.PathListSeparator) + "/usr/bin"
+	t.Setenv("PATH", "/usr/bin")
+	m, _, rt, _ := pathPinManager(func() (string, error) { return daemonExe, nil })
+	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker}); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.lastCfg.Env["PATH"]; got != want {
+		t.Fatalf("runtime env PATH = %q, want packaged hook sibling %q", got, want)
+	}
+}
+
 // TestSpawn_ProjectPATHIsPinBase asserts a project's PATH override survives the
 // pin as its base rather than being clobbered or clobbering: the daemon dir
 // still comes first.

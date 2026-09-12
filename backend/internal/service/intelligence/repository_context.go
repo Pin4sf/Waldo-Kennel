@@ -52,7 +52,7 @@ var DefaultRepositoryContextLimits = RepositoryContextLimits{
 
 // RepositoryContextLimitsSource resolves the owner's configured bounds
 // (already normalized: unset -> DefaultRepositoryContextLimits, uncapped ->
-// zero or negative). It is intentionally satisfied structurally: the
+// zero). It is intentionally satisfied structurally: the
 // settings service implements this shape without either package importing
 // the other.
 type RepositoryContextLimitsSource interface {

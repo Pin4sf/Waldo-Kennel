@@ -164,6 +164,10 @@ const (
 	EnvSupervisedProcess = "KENNEL_SUPERVISED_PROCESS"
 	// EnvDataDir tells a spawned agent's Kennel hook commands where the store lives.
 	EnvDataDir = "KENNEL_DATA_DIR"
+	// EnvRunFile tells spawned hook commands which live daemon instance owns the
+	// session. This matters for isolated profiles and side-by-side app instances,
+	// where the canonical running.json path is intentionally overridden.
+	EnvRunFile = "KENNEL_RUN_FILE"
 	// EnvBrowserCapability proves ownership of the session's browser target.
 	EnvBrowserCapability    = "KENNEL_BROWSER_CAPABILITY"
 	EnvSupervisorCapability = supervisorcap.EnvCapability
@@ -325,6 +329,7 @@ type Manager struct {
 	attachments            *attachmentstore.Store
 	attachmentSuffix       func() (string, error)
 	dataDir                string
+	runFile                string
 	clock                  func() time.Time
 	// openTranscriptFile is os.Open in production. The narrow seam lets tests
 	// deterministically prove that a post-stop transcript read failure falls
@@ -605,6 +610,9 @@ type Deps struct {
 	// DataDir owns durable attachment storage and is exported to spawned agents
 	// as KENNEL_DATA_DIR so their hook commands can open the same store.
 	DataDir string
+	// RunFile is exported to spawned agents as KENNEL_RUN_FILE so provider hooks
+	// reconnect to this daemon rather than a default-profile daemon.
+	RunFile string
 	Clock   func() time.Time
 	// LookPath overrides exec.LookPath for the pre-launch agent-binary check.
 	// Production wiring leaves this nil and the manager defaults to
@@ -642,6 +650,7 @@ func New(d Deps) *Manager {
 		attachments:                  attachmentstore.New(d.DataDir),
 		attachmentSuffix:             randomSuffix,
 		dataDir:                      d.DataDir,
+		runFile:                      d.RunFile,
 		clock:                        d.Clock,
 		openTranscriptFile:           os.Open,
 		lookPath:                     d.LookPath,
@@ -3572,6 +3581,9 @@ func spawnEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueI
 // logged so the degradation isn't silent.
 func (m *Manager) runtimeEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueID, projectEnv map[string]string) map[string]string {
 	env := spawnEnv(id, project, issue, m.dataDir, projectEnv)
+	if strings.TrimSpace(m.runFile) != "" {
+		env[EnvRunFile] = m.runFile
+	}
 	env[EnvBrowserCapability] = ""
 	env[EnvSupervisorCapability] = ""
 	env[EnvBrowserRuntimeToken] = ""
@@ -3634,9 +3646,12 @@ func (m *Manager) persistSupervisorCapabilityVerifier(ctx context.Context, rec d
 // executable's directory prepended to the base PATH (the project's PATH
 // override when set, else the daemon's inherited PATH — matching what the
 // runtime would have exported anyway). An error means the pin cannot be
-// applied: the executable is unresolvable, or is not named "kennel", in which case
-// prepending its directory would not change what `kennel` resolves to. Exported so
-// the reviewer launcher can pin its pane's PATH the same way.
+// applied: the executable is unresolvable, or neither is nor sits beside the
+// `kennel` CLI name, in which case prepending its directory would not change
+// what `kennel` resolves to. Packaged desktop builds deliberately launch the
+// sibling `kennel-daemon` name and bundle the same binary again as `kennel` for
+// this hook boundary. Exported so the reviewer launcher can pin its pane's PATH
+// the same way.
 func HookPATH(executable func() (string, error), getenv func(string) string, projectEnv map[string]string) (string, error) {
 	exe, err := executable()
 	if err != nil {
@@ -3647,7 +3662,14 @@ func HookPATH(executable func() (string, error), getenv func(string) string, pro
 		name = strings.TrimSuffix(strings.ToLower(name), ".exe")
 	}
 	if name != hookBinaryName {
-		return "", fmt.Errorf("daemon executable %s is not named %q", exe, hookBinaryName)
+		hookPath := filepath.Join(filepath.Dir(exe), hookBinaryName)
+		if runtime.GOOS == "windows" {
+			hookPath += ".exe"
+		}
+		info, statErr := os.Stat(hookPath)
+		if statErr != nil || info.IsDir() || (runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0) {
+			return "", fmt.Errorf("daemon executable %s has no executable sibling named %q", exe, filepath.Base(hookPath))
+		}
 	}
 	base := projectEnv["PATH"]
 	if base == "" {

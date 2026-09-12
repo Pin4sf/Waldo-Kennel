@@ -1,8 +1,10 @@
 package controllers
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
@@ -1854,14 +1856,56 @@ type RepositoryContextLimitsResponse struct {
 	EffectiveMaxVisited int64 `json:"effectiveMaxVisited"`
 }
 
-// UpdateRepositoryContextLimitsRequest sets the owner's repository-context
-// bounds. All three are required, mirroring reasoning settings: send the
-// full set of values you want in force, not just the one you're changing.
-// Zero means uncapped.
+// UpdateRepositoryContextLimitsRequest patches the owner's repository-context
+// bounds. Omitted fields are preserved, null clears an override back to the
+// built-in default, zero explicitly uncaps a bound, and a positive value sets
+// the cap. The Set flags are decoder-only presence metadata.
 type UpdateRepositoryContextLimitsRequest struct {
-	MaxFiles   int64 `json:"maxFiles"`
-	MaxBytes   int64 `json:"maxBytes"`
-	MaxVisited int64 `json:"maxVisited"`
+	MaxFiles      *int64 `json:"maxFiles,omitempty"`
+	MaxBytes      *int64 `json:"maxBytes,omitempty"`
+	MaxVisited    *int64 `json:"maxVisited,omitempty"`
+	MaxFilesSet   bool   `json:"-"`
+	MaxBytesSet   bool   `json:"-"`
+	MaxVisitedSet bool   `json:"-"`
+}
+
+// UnmarshalJSON retains field presence because encoding/json otherwise maps
+// both an omitted pointer and an explicit null to nil. A top-level null is not
+// a PATCH object, and unknown fields are rejected instead of being ignored.
+func (r *UpdateRepositoryContextLimitsRequest) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	if fields == nil {
+		return fmt.Errorf("repository-context patch must be a JSON object")
+	}
+	*r = UpdateRepositoryContextLimitsRequest{}
+	for name, raw := range fields {
+		var target **int64
+		var present *bool
+		switch name {
+		case "maxFiles":
+			target, present = &r.MaxFiles, &r.MaxFilesSet
+		case "maxBytes":
+			target, present = &r.MaxBytes, &r.MaxBytesSet
+		case "maxVisited":
+			target, present = &r.MaxVisited, &r.MaxVisitedSet
+		default:
+			return fmt.Errorf("unknown repository-context field %q", name)
+		}
+		*present = true
+		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			*target = nil
+			continue
+		}
+		var value int64
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return fmt.Errorf("%s must be an integer or null: %w", name, err)
+		}
+		*target = &value
+	}
+	return nil
 }
 
 // capabilityNames lists the abilities a provider has, sorted so a client sees a

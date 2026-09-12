@@ -73,6 +73,17 @@ describe("OutcomeRunBoardAdapters — Ready lane Merge action", () => {
 		expect(screen.getByRole("button", { name: "Engage" })).toBeInTheDocument();
 	});
 
+	it("renders the recorded harness logo instead of a generic or Claude mark", () => {
+		workspaceQueryMock.mockReturnValue({ data: [{ id: "proj-1", sessions: [{ id: "sess-1", prs: [] }] }] });
+		scmSummaryMock.mockReturnValue({ data: [] });
+		const presentation = toAttemptBoardPresentation(attempt(), plan, true, ((key: string) => key) as never);
+
+		render(<AttemptCardAdapter onEngage={vi.fn()} presentation={presentation} />);
+
+		expect(screen.getByRole("img", { name: "codex" })).toBeInTheDocument();
+		expect(screen.queryByRole("img", { name: "claude-code" })).not.toBeInTheDocument();
+	});
+
 	it("offers only Engage — no Merge control at all — when there is no resolvable pull request", () => {
 		workspaceQueryMock.mockReturnValue({ data: [{ id: "proj-1", sessions: [{ id: "sess-1", prs: [] }] }] });
 		scmSummaryMock.mockReturnValue({ data: [] });

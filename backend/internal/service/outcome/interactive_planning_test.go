@@ -3,6 +3,7 @@ package outcome_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -560,10 +561,48 @@ func TestInteractivePlanning_LateProviderResponseCannotPublishAfterCancel(t *tes
 // fixedRepositoryContextLimits is a constant RepositoryContextLimitsSource,
 // letting a test trigger BuildRepositoryContext's discovery-entry-limit
 // without needing thousands of fixture files.
-type fixedRepositoryContextLimits struct{ maxFiles, maxBytes, maxVisited int }
+type fixedRepositoryContextLimits struct {
+	maxFiles, maxBytes, maxVisited int
+	err                            error
+}
 
 func (f fixedRepositoryContextLimits) RepositoryContextLimits(context.Context) (int, int, int, error) {
-	return f.maxFiles, f.maxBytes, f.maxVisited, nil
+	return f.maxFiles, f.maxBytes, f.maxVisited, f.err
+}
+
+func TestInteractivePlanning_SettingsReadFailureCreatesNoSessionOrProviderTurn(t *testing.T) {
+	ctx := context.Background()
+	store := sqlitetest.MustOpen(t)
+	repo := initPlanningRepo(t)
+	project := domain.ProjectRecord{ID: "planning-limits-error", Path: repo, DisplayName: "Limits failure", RegisteredAt: time.Now().UTC()}
+	if err := store.UpsertProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	provider := &interactivePlanningFake{}
+	want := errors.New("settings read failed")
+	svc := outcome.New(store, nil).
+		WithPlanning(provider, &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}).
+		WithRepositoryContextLimits(fixedRepositoryContextLimits{err: want})
+	created, err := svc.Create(ctx, outcome.CreateInput{
+		ProjectID: domain.ProjectID(project.ID), Title: "Limits failure", Goal: "Do not disguise a settings failure as default context limits.",
+		SuccessCriteria: []string{"No context is sent under unintended bounds."}, Review: "Inspect provider calls and durable planning state.",
+		AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true}, RequestKey: "planning-limits-error-outcome",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.StartPlanning(ctx, created.Outcome.ID, outcome.StartPlanningInput{
+		ExpectedContractRevision: 1, CandidateID: "direct-openai-planner", RequestKey: "planning-limits-error-start",
+	})
+	if !errors.Is(err, want) || !strings.Contains(err.Error(), "resolve repository-context limits") {
+		t.Fatalf("StartPlanning() error = %v, want surfaced settings failure", err)
+	}
+	if provider.discussCalls != 0 {
+		t.Fatalf("provider discussion calls = %d, want zero", provider.discussCalls)
+	}
+	if _, found, err := store.GetCurrentPlanningSession(ctx, created.Outcome.ID); err != nil || found {
+		t.Fatalf("settings failure created a planning session: found=%v err=%v", found, err)
+	}
 }
 
 // TestInteractivePlanning_PartialRepositoryContextStillStartsPlanning covers

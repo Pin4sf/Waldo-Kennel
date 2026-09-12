@@ -25,7 +25,7 @@ type Store interface {
 	SetDefaultSessionMode(ctx context.Context, mode domain.SessionMode, now time.Time) error
 	SetReasoningSettings(ctx context.Context, provider, model, effort string, now time.Time) error
 	SetReasoningVerification(ctx context.Context, verifiedAt *time.Time, provider, model string, now time.Time) error
-	SetRepositoryContextLimits(ctx context.Context, maxFiles, maxBytes, maxVisited *int64, now time.Time) error
+	PatchRepositoryContextLimits(ctx context.Context, patch RepositoryContextLimitsPatch, now time.Time) error
 }
 
 // VerificationGenerationStore is implemented by durable stores that can
@@ -57,6 +57,36 @@ type Snapshot struct {
 	RepositoryContextMaxBytes   *int64
 	RepositoryContextMaxVisited *int64
 	UpdatedAt                   time.Time
+}
+
+// RepositoryContextLimitPatch preserves the three meanings a PATCH field can
+// carry. Present=false leaves the stored value alone; Present=true with a nil
+// Value clears the override back to Kennel's built-in default; a non-nil Value
+// stores that exact limit, including zero (uncapped).
+type RepositoryContextLimitPatch struct {
+	Present bool
+	Value   *int64
+}
+
+// RepositoryContextLimitsPatch is the field-wise update applied atomically by
+// the daemon's canonical settings writer.
+type RepositoryContextLimitsPatch struct {
+	MaxFiles   RepositoryContextLimitPatch
+	MaxBytes   RepositoryContextLimitPatch
+	MaxVisited RepositoryContextLimitPatch
+}
+
+// Validate refuses negative limits without mutating settings. Zero is an
+// explicit, valid uncapped value.
+func (p RepositoryContextLimitsPatch) Validate() error {
+	for name, field := range map[string]RepositoryContextLimitPatch{
+		"maxFiles": p.MaxFiles, "maxBytes": p.MaxBytes, "maxVisited": p.MaxVisited,
+	} {
+		if field.Present && field.Value != nil && *field.Value < 0 {
+			return fmt.Errorf("%s must be zero (uncapped), positive, or null (built-in default)", name)
+		}
+	}
+	return nil
 }
 
 // SecretStore is intentionally narrower than a general credential manager.
@@ -607,11 +637,14 @@ func resolveLimit(configured *int64, builtinDefault int64) int64 {
 	return *configured
 }
 
-// SetRepositoryContextLimits stores the owner's repository-context bounds. A
-// nil field clears that override back to Kennel's built-in default; zero
-// means uncapped.
-func (s *Service) SetRepositoryContextLimits(ctx context.Context, maxFiles, maxBytes, maxVisited *int64) (Snapshot, error) {
-	if err := s.store.SetRepositoryContextLimits(ctx, maxFiles, maxBytes, maxVisited, s.now()); err != nil {
+// PatchRepositoryContextLimits applies only fields present in the request. A
+// present nil field clears that override back to Kennel's built-in default;
+// zero means uncapped.
+func (s *Service) PatchRepositoryContextLimits(ctx context.Context, patch RepositoryContextLimitsPatch) (Snapshot, error) {
+	if err := patch.Validate(); err != nil {
+		return Snapshot{}, err
+	}
+	if err := s.store.PatchRepositoryContextLimits(ctx, patch, s.now()); err != nil {
 		return Snapshot{}, err
 	}
 	return s.store.GetAppSettings(ctx)

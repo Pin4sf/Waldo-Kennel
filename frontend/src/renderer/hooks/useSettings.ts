@@ -19,7 +19,7 @@ export interface Settings {
 	/** Agents that can run in chat mode today. Empty means chat is unavailable. */
 	chatHarnesses: string[];
 	reasoning: {
-        mode?: string;
+		mode?: string;
 		provider: string;
 		model: string;
 		effort: string;
@@ -31,6 +31,7 @@ export interface Settings {
 		errorCode?: string;
 		error?: string;
 	};
+	repositoryContext: components["schemas"]["ControllersRepositoryContextLimitsResponse"];
 }
 
 export function useSettings() {
@@ -43,6 +44,14 @@ export function useSettings() {
 				defaultSessionMode: (data?.defaultSessionMode ?? "tui") as SessionMode,
 				chatHarnesses: data?.chatHarnesses ?? [],
 				reasoning: data?.reasoning ?? { provider: "", model: "", effort: "", configured: false, ready: false, keyConfigured: false, verified: false },
+				repositoryContext: data?.repositoryContext ?? {
+					maxFiles: null,
+					maxBytes: null,
+					maxVisited: null,
+					effectiveMaxFiles: 32,
+					effectiveMaxBytes: 96 * 1024,
+					effectiveMaxVisited: 20_000,
+				},
 			};
 		},
 	});
@@ -51,6 +60,32 @@ export function useSettings() {
 		settings: query.data,
 		isLoading: query.isLoading,
 		error: query.error ? apiErrorMessage(query.error) : undefined,
+	};
+}
+
+export function useUpdateRepositoryContextLimits() {
+	const queryClient = useQueryClient();
+	const mutation = useMutation({
+		mutationFn: async (input: components["schemas"]["ControllersUpdateRepositoryContextLimitsRequest"]) => {
+			const { data, error } = await apiClient.PATCH("/api/v1/settings/repository-context", { body: input });
+			if (error) throw error;
+			return data;
+		},
+		onSuccess: (repositoryContext) => {
+			if (repositoryContext) {
+				queryClient.setQueryData<Settings>(settingsQueryKey, (current) =>
+					current ? { ...current, repositoryContext } : current,
+				);
+			}
+			return queryClient.invalidateQueries({ queryKey: settingsQueryKey });
+		},
+	});
+
+	return {
+		update: (input: components["schemas"]["ControllersUpdateRepositoryContextLimitsRequest"]) => mutation.mutateAsync(input),
+		saving: mutation.isPending,
+		error: mutation.error ? apiErrorMessage(mutation.error) : undefined,
+		reset: mutation.reset,
 	};
 }
 

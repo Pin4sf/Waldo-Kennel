@@ -79,12 +79,32 @@ func toNullInt64(v *int64) sql.NullInt64 {
 	return sql.NullInt64{Int64: *v, Valid: true}
 }
 
-// SetRepositoryContextLimits stores the owner's repository-context bounds.
-// A nil pointer clears the override back to Kennel's built-in default; zero
-// means uncapped.
-func (s *Store) SetRepositoryContextLimits(ctx context.Context, maxFiles, maxBytes, maxVisited *int64, now time.Time) error {
+// PatchRepositoryContextLimits serializes the read/merge/write under the same
+// canonical writer lock used by every app-settings mutation. Concurrent PATCH
+// requests for different fields therefore cannot overwrite one another with a
+// stale full snapshot. A present nil value clears the override; zero uncaps it.
+func (s *Store) PatchRepositoryContextLimits(
+	ctx context.Context,
+	maxFilesPresent bool, maxFiles *int64,
+	maxBytesPresent bool, maxBytes *int64,
+	maxVisitedPresent bool, maxVisited *int64,
+	now time.Time,
+) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	current, err := s.qr.GetAppSettings(ctx)
+	if err != nil {
+		return fmt.Errorf("read repository context limits for patch: %w", err)
+	}
+	if !maxFilesPresent {
+		maxFiles = int64Ptr(current.RepositoryContextMaxFiles)
+	}
+	if !maxBytesPresent {
+		maxBytes = int64Ptr(current.RepositoryContextMaxBytes)
+	}
+	if !maxVisitedPresent {
+		maxVisited = int64Ptr(current.RepositoryContextMaxVisited)
+	}
 	if err := s.qw.SetRepositoryContextLimits(ctx, gen.SetRepositoryContextLimitsParams{
 		RepositoryContextMaxFiles:   toNullInt64(maxFiles),
 		RepositoryContextMaxBytes:   toNullInt64(maxBytes),

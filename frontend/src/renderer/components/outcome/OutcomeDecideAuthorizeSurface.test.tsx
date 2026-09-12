@@ -110,7 +110,7 @@ beforeEach(() => {
 });
 
 describe("OutcomeDecideAuthorizeSurface", () => {
-	it("requires an admitted planning provider and defaults to repository read scope", async () => {
+	it("uses the sole admitted planning provider and defaults to repository read scope", async () => {
 		getMock.mockImplementation(async (url: string) => {
 			if (url === "/api/v1/outcomes/{outcomeId}") return { data: outcomeEnvelope(1), error: undefined };
 			if (url === "/api/v1/outcomes/{outcomeId}/plan") return { data: undefined, error: { code: "PLAN_NOT_FOUND", message: "no plan yet" } };
@@ -131,9 +131,7 @@ describe("OutcomeDecideAuthorizeSurface", () => {
 		});
 		renderSurface();
 
-		expect(await screen.findByRole("radio", { name: /openai/i })).not.toBeChecked();
-		expect(screen.getByTestId("planning-start")).toBeDisabled();
-		await userEvent.click(screen.getByRole("radio", { name: /openai/i }));
+		expect(await screen.findByRole("radio", { name: /openai/i })).toBeChecked();
 		expect(screen.getByTestId("planning-start")).toBeEnabled();
 		await userEvent.click(screen.getByTestId("planning-start"));
 
@@ -155,6 +153,28 @@ describe("OutcomeDecideAuthorizeSurface", () => {
 		expect(card).toHaveTextContent(/proposed/i);
 		expect(screen.getByTestId("outcome-approve-plan")).toBeInTheDocument();
 		expect(screen.queryByText(/start execution/i)).not.toBeInTheDocument();
+	});
+
+	it("keeps the readable Plan and dependency graph as separate views", async () => {
+		getMock.mockImplementation(async (url: string) => {
+			if (url === "/api/v1/outcomes/{outcomeId}") return { data: outcomeEnvelope(1), error: undefined };
+			if (url === "/api/v1/outcomes/{outcomeId}/plan") return { data: planEnvelope(), error: undefined };
+			return { data: undefined, error: undefined };
+		});
+		renderSurface();
+
+		expect(await screen.findByTestId("outcome-plan-details")).toBeInTheDocument();
+		expect(screen.queryByTestId("outcome-plan-graph")).not.toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole("button", { name: "Graph" }));
+		expect(screen.getByTestId("outcome-plan-graph")).toBeInTheDocument();
+		expect(screen.getByTestId("mission-work-unit-graph")).toBeInTheDocument();
+		expect(screen.queryByTestId("outcome-plan-details")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("outcome-plan-work-units")).not.toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole("button", { name: "Plan" }));
+		expect(screen.getByTestId("outcome-plan-details")).toBeInTheDocument();
+		expect(screen.queryByTestId("outcome-plan-graph")).not.toBeInTheDocument();
 	});
 
 	it("approves with the revision the approver was looking at", async () => {

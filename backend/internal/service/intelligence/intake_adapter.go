@@ -50,15 +50,15 @@ func (a *IntakeAnalyzer) WithRepositoryContextLimits(source RepositoryContextLim
 	return a
 }
 
-func (a *IntakeAnalyzer) repositoryContextLimits(ctx context.Context) RepositoryContextLimits {
+func (a *IntakeAnalyzer) repositoryContextLimits(ctx context.Context) (RepositoryContextLimits, error) {
 	if a.limits == nil {
-		return DefaultRepositoryContextLimits
+		return DefaultRepositoryContextLimits, nil
 	}
 	maxFiles, maxBytes, maxVisited, err := a.limits.RepositoryContextLimits(ctx)
 	if err != nil {
-		return DefaultRepositoryContextLimits
+		return RepositoryContextLimits{}, fmt.Errorf("resolve repository-context limits for contract analysis: %w", err)
 	}
-	return RepositoryContextLimits{MaxFiles: maxFiles, MaxBytes: maxBytes, MaxVisited: maxVisited}
+	return RepositoryContextLimits{MaxFiles: maxFiles, MaxBytes: maxBytes, MaxVisited: maxVisited}, nil
 }
 
 // Analyze records bounded contract-analysis provenance and returns its proposal.
@@ -86,7 +86,11 @@ func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysis
 		if candidate, ok := a.projects.(briefSource); ok {
 			brief = candidate
 		}
-		request.RepositoryContext, err = BuildRepositoryContext(ctx, project, brief, a.repositoryContextLimits(ctx))
+		limits, limitErr := a.repositoryContextLimits(ctx)
+		if limitErr != nil {
+			return ports.IntakeAnalysisTicket{}, limitErr
+		}
+		request.RepositoryContext, err = BuildRepositoryContext(ctx, project, brief, limits)
 		if err != nil {
 			return ports.IntakeAnalysisTicket{}, err
 		}

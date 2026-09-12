@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -256,6 +257,12 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	if err != nil {
 		return AttemptView{}, apierr.Conflict(CodeAttemptCapabilityUnauthorized, "The approved WorkUnit capability packet is invalid", map[string]any{"detail": err.Error(), "workUnitId": unit.ID})
 	}
+	prompt, err := renderRunBriefPrompt(revision, unit)
+	if err != nil {
+		return AttemptView{}, apierr.Conflict(CodePlanBriefInvalidated,
+			"The frozen Contract and WorkUnit could not be compiled into an exact RunBrief",
+			map[string]any{"detail": err.Error(), "planId": plan.ID, "workUnitId": unit.ID})
+	}
 
 	projectID, ok, err := s.store.GetOutcomeProjectID(ctx, outcomeID)
 	if err != nil {
@@ -326,7 +333,6 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		return AttemptView{}, err
 	}
 
-	prompt := renderRunBriefPrompt(revision, unit)
 	spawned, err := s.spawner.Spawn(ctx, ports.AttemptSpawnRequest{
 		ProjectID: projectID, Harness: binding.Provider, ModelSelection: binding.ModelSelection, Model: binding.Model,
 		ExecutionPolicy: &policy,
@@ -706,17 +712,60 @@ func systemOwnedPrelaunchObservationKind(kind string) bool {
 	return kind == domain.ObservationAdmissionFailed || kind == domain.ObservationInputProvisioningFailed
 }
 
-func renderRunBriefPrompt(revision domain.ContractRevision, unit domain.WorkUnit) string {
+func renderRunBriefPrompt(revision domain.ContractRevision, unit domain.WorkUnit) (string, error) {
+	assigned := make(map[domain.CriterionID]struct{}, len(unit.CriterionIDs))
+	for _, id := range unit.CriterionIDs {
+		assigned[id] = struct{}{}
+	}
+	criteria := make([]domain.ContractCriterion, 0, len(unit.CriterionIDs))
+	for _, criterion := range revision.Criteria {
+		if _, ok := assigned[criterion.ID]; ok {
+			criteria = append(criteria, criterion)
+			delete(assigned, criterion.ID)
+		}
+	}
+	if len(assigned) != 0 {
+		missing := make([]string, 0, len(assigned))
+		for id := range assigned {
+			missing = append(missing, id.String())
+		}
+		sort.Strings(missing)
+		return "", fmt.Errorf("WorkUnit references criteria absent from Contract revision %s: %s", revision.ID, strings.Join(missing, ", "))
+	}
+
 	var b strings.Builder
 	b.WriteString("Execute the following approved WorkUnit inside your isolated worktree.\n\n")
+	b.WriteString("Frozen attribution:\n")
+	b.WriteString("- Contract revision: " + revision.ID.String() + " (revision " + fmt.Sprintf("%d", revision.Number) + ")\n")
+	b.WriteString("- WorkUnit: " + unit.ID.String() + "\n\n")
 	b.WriteString("Goal: " + revision.Goal + "\n")
-	b.WriteString("WorkUnit: " + unit.Title + "\n")
+	b.WriteString("WorkUnit title: " + unit.Title + "\n")
 	b.WriteString("Expected output: " + unit.OutputSummary + "\n")
+	b.WriteString("\nAssigned Contract criteria (exact approved text):\n")
+	for _, criterion := range criteria {
+		b.WriteString("Criterion " + criterion.ID.String() + ":\n")
+		writeExactRunBriefValue(&b, criterion.Text)
+	}
+	b.WriteString("Contract review method (exact approved text):\n")
+	writeExactRunBriefValue(&b, revision.Review)
 	b.WriteString("Evidence checks:\n")
 	for _, check := range unit.EvidenceChecks {
 		b.WriteString("- " + check + "\n")
 	}
 	b.WriteString("Verification: " + unit.VerificationRequirement + "\n")
+	if len(unit.Checks) > 0 {
+		b.WriteString("\nDaemon-owned approved verification checks (context only):\n")
+		b.WriteString("Kennel, not this worker, decides when to execute these checks. Their presence grants no additional command authority or capability.\n")
+		for _, check := range unit.Checks {
+			b.WriteString("Check " + check.ID.String() + " for criterion " + check.CriterionID.String() + ":\n")
+			b.WriteString("- working directory: isolated worktree root\n")
+			b.WriteString("- timeout seconds: " + fmt.Sprintf("%d", check.TimeoutSeconds) + "\n")
+			for index, argument := range check.Argv {
+				fmt.Fprintf(&b, "- argv[%d] exact value:\n", index)
+				writeExactRunBriefValue(&b, argument)
+			}
+		}
+	}
 	if len(unit.StopConditions) > 0 {
 		b.WriteString("Stop conditions:\n")
 		for _, stop := range unit.StopConditions {
@@ -730,5 +779,12 @@ func renderRunBriefPrompt(revision domain.ContractRevision, unit domain.WorkUnit
 		}
 	}
 	b.WriteString("\nReport completion honestly; provider completion is not final acceptance.\n")
-	return b.String()
+	return b.String(), nil
+}
+
+func writeExactRunBriefValue(b *strings.Builder, value string) {
+	b.WriteString(value)
+	if !strings.HasSuffix(value, "\n") {
+		b.WriteByte('\n')
+	}
 }

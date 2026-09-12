@@ -77,6 +77,21 @@ func TestRuntimeEnvClearsDaemonBrowserRuntimeSecrets(t *testing.T) {
 	}
 }
 
+func TestRuntimeEnvPinsRunFileForHookCallbacks(t *testing.T) {
+	manager := &Manager{
+		dataDir:    "/data",
+		runFile:    "/profiles/test/running.json",
+		executable: func() (string, error) { return filepath.Join("/opt", "kennel", "kennel"), nil },
+		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	env := manager.runtimeEnv("mer-1", "mer", "", map[string]string{
+		EnvRunFile: "/project/cannot-override.json",
+	})
+	if got := env[EnvRunFile]; got != manager.runFile {
+		t.Fatalf("%s = %q, want %q", EnvRunFile, got, manager.runFile)
+	}
+}
+
 func TestHookPATH(t *testing.T) {
 	sep := string(os.PathListSeparator)
 	daemonExe := filepath.Join("/opt", "kennel", "kennel")

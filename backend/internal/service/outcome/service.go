@@ -241,18 +241,19 @@ func (s *Service) WithRepositoryContextLimits(source intelligencesvc.RepositoryC
 	return s
 }
 
-// repositoryContextLimits resolves the effective bounds for one
-// BuildRepositoryContext call, falling back to the package default when no
-// source is wired or it fails to resolve.
-func (s *Service) repositoryContextLimits(ctx context.Context) intelligencesvc.RepositoryContextLimits {
+// repositoryContextLimits resolves the effective bounds for one context build.
+// An absent optional source uses package defaults; a wired source that fails is
+// surfaced so no provider receives context under limits the owner did not ask
+// for and no settings failure is disguised as a default.
+func (s *Service) repositoryContextLimits(ctx context.Context) (intelligencesvc.RepositoryContextLimits, error) {
 	if s.contextLimits == nil {
-		return intelligencesvc.DefaultRepositoryContextLimits
+		return intelligencesvc.DefaultRepositoryContextLimits, nil
 	}
 	maxFiles, maxBytes, maxVisited, err := s.contextLimits.RepositoryContextLimits(ctx)
 	if err != nil {
-		return intelligencesvc.DefaultRepositoryContextLimits
+		return intelligencesvc.RepositoryContextLimits{}, fmt.Errorf("resolve repository-context limits for Outcome planning: %w", err)
 	}
-	return intelligencesvc.RepositoryContextLimits{MaxFiles: maxFiles, MaxBytes: maxBytes, MaxVisited: maxVisited}
+	return intelligencesvc.RepositoryContextLimits{MaxFiles: maxFiles, MaxBytes: maxBytes, MaxVisited: maxVisited}, nil
 }
 
 // WithAttemptRetainer attaches the restart-safe workspace capture used before

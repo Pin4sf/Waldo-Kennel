@@ -10804,18 +10804,17 @@ components:
     ControllersUpdateRepositoryContextLimitsRequest:
       properties:
         maxBytes:
-          format: int64
-          type: integer
+          type:
+          - "null"
+          - integer
         maxFiles:
-          format: int64
-          type: integer
+          type:
+          - "null"
+          - integer
         maxVisited:
-          format: int64
-          type: integer
-      required:
-      - maxFiles
-      - maxBytes
-      - maxVisited
+          type:
+          - "null"
+          - integer
       type: object
     ConversationAccountPayload:
       properties:

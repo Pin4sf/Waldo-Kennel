@@ -423,6 +423,10 @@ func TestResolveCodexBinaryFindsNVMInstallWhenPathIsSparse(t *testing.T) {
 	if err := os.WriteFile(want, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	want, err := filepath.EvalSymlinks(want)
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("HOME", home)
 	t.Setenv("PATH", "")
 	origFileExists := fileExists
@@ -461,6 +465,41 @@ func TestResolveCodexBinaryFindsChatGPTBundledInstallWhenPathIsSparse(t *testing
 	}
 	if got != want {
 		t.Fatalf("ResolveCodexBinary = %q, want %q", got, want)
+	}
+}
+
+func TestResolveCodexBinaryPreservesNativeSidecarDirectoryAcrossPATHSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix symlink resolution")
+	}
+	targetDir := t.TempDir()
+	target := filepath.Join(targetDir, "codex")
+	if err := os.WriteFile(target, []byte("native codex"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(targetDir, "codex-code-mode-host"), []byte("sidecar"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pathDir := t.TempDir()
+	shim := filepath.Join(pathDir, "codex")
+	if err := os.Symlink(target, shim); err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", pathDir)
+
+	got, err := ResolveCodexBinary(context.Background())
+	if err != nil {
+		t.Fatalf("ResolveCodexBinary: %v", err)
+	}
+	if got != want {
+		t.Fatalf("ResolveCodexBinary = %q, want real executable %q", got, want)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(got), "codex-code-mode-host")); err != nil {
+		t.Fatalf("sidecar beside resolved executable: %v", err)
 	}
 }
 
