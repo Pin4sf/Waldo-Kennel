@@ -1,16 +1,9 @@
 # Contributing
 
-We love contributions — code, docs, triage, examples, and tests.
-Start on Discord so scope is clear before you invest time.
-
-[![Discord](https://img.shields.io/badge/Discord-join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white&logoSize=auto)](https://discord.com/invite/UZv7JjxbwG)
-
-**Daily contributor sync:** every day at **10:00 PM IST**
-
-- **Discord** → questions, mentoring, sync, realtime unblocking
-- **GitHub** → bugs, proposals, design threads, review
-
-Non-trivial work? Comment on the issue or ping Discord first. Get a thumbs-up, then build.
+We welcome focused contributions: code, documentation, triage, examples and
+tests. GitHub issues and pull requests are the durable coordination record.
+For non-trivial work, open or comment on an issue before implementation so the
+scope, authority documents and shared-file ownership are clear.
 
 ## Ways to contribute
 
@@ -23,8 +16,8 @@ Non-trivial work? Comment on the issue or ping Discord first. Get a thumbs-up, t
 
 ## Quick start
 
-1. **Join Discord** — say hi and get guidance
-2. **Read the contract** — [AGENTS.md](AGENTS.md) (layout, commands, hard rules, PR hygiene)
+1. **Read the contract** — [AGENTS.md](AGENTS.md) (layout, commands, hard rules, PR hygiene)
+2. **Check current truth** — [docs/STATUS.md](docs/STATUS.md), then use [ROADMAP.md](ROADMAP.md) for direction
 3. **Pick something focused** — [open issues](https://github.com/Pin4sf/Waldo-Kennel/issues); prefer an assigned issue in the current milestone
 4. **Claim it** — comment `I'd like to work on this` and wait for assignment
 5. **Open a clear PR** — narrow change, link the issue, user-visible impact, tests
@@ -44,6 +37,10 @@ Two onboarding notes matter on current `main`:
 Use the GitHub issue forms (**Bug report** / **Feature request**) so reports stay reproducible.
 Bug reports should include the Kennel version or commit, environment, repro steps, and expected vs actual behavior.
 
+Feature proposals should describe the user Outcome and current limitation before
+suggesting implementation. Roadmap milestones are not assignments; keep each
+issue to one falsifiable slice and cite the governing ADR/spec when applicable.
+
 ### Pull requests
 
 Follow **PR hygiene** in [AGENTS.md](AGENTS.md): one issue per PR, conventional commits, explicit dependencies and shared-file ownership, intentional omissions, and verification evidence.
@@ -60,6 +57,8 @@ Releases are cut only from tested `main` by the designated release conductor. A 
 
 ## Code of Conduct
 
-Be respectful, constructive, and assume good intent. Report problems to maintainers via Discord DM.
+Be respectful, constructive and assume good intent. Keep technical disagreement
+focused on evidence, behavior and product invariants. Do not put credentials,
+private repository content or vulnerability details in a public issue.
 
 Thanks for making Waldo Kennel better for the next person who shows up.

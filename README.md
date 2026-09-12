@@ -2,9 +2,27 @@
 
 Waldo Kennel is a local-first desktop control plane for delegated coding-agent work. It keeps the durable responsibility above provider sessions: the user manages **Outcomes**, while Kennel validates, schedules, records, recovers, and explains the execution required to make those Outcomes true.
 
-The repository is an independently maintained, AO-derived foundation that has evolved into a standalone Kennel codebase. The current `beta` already contains a Go daemon, SQLite/change-log persistence, Electron/React supervisor, worktrees, provider sessions, recovery, terminal/chat/browser/PR supervision, and the canonical Outcome lifecycle through explicit user Acceptance. The next kernel program adds the WorkUnit DAG, truthful scheduler/workspace leases, structured receipts, and the final Outcome-first Work projections.
+The repository is an independently maintained, AO-derived foundation that has evolved into a standalone Kennel codebase. The current `beta` contains a Go daemon, SQLite/change-log persistence, Electron/React supervisor, worktrees, provider sessions, recovery, terminal/chat/browser/PR supervision, and the canonical Outcome lifecycle through explicit user Acceptance. The launch milestone is one trustworthy serial Outcome loop. Parallel execution, source-linked Memory, cross-session learning, adaptive orchestration, better Outcome suggestions, and continued UI/brand work follow through explicit gates in the [`ROADMAP.md`](ROADMAP.md).
 
 ## Start here
+
+### Try the current beta from source
+
+1. Clone the repository and run `npm run bootstrap`.
+2. Start the desktop development app with `npm --prefix frontend run dev`.
+3. Register a local Project and configure a supported reasoning path in
+   **Settings**: an owner-supplied OpenAI/Anthropic API credential or an
+   authenticated native Codex installation.
+4. Describe an Outcome, review the grounded Contract, answer planning questions
+   and authorize the proposed Plan.
+5. Supervise execution in Mission Control, inspect an attached Session when
+   needed, then review evidence and explicitly accept or request rework.
+
+This is an active beta. Check [`docs/STATUS.md`](docs/STATUS.md) before relying on
+a provider or end-to-end path; provider identity does not imply every role has
+passed conformance.
+
+### Contributor authority
 
 Coding agents and contributors should **not** recursively ingest every historical document in this repository. Use the authority chain:
 
@@ -15,6 +33,10 @@ Coding agents and contributors should **not** recursively ingest every historica
 5. [`docs/STATUS.md`](docs/STATUS.md)
 6. [`docs/product/kennel-build-program.md`](docs/product/kennel-build-program.md)
 7. [`docs/superpowers/plans/2026-09-04-kennel-builds-kennel.md`](docs/superpowers/plans/2026-09-04-kennel-builds-kennel.md)
+
+Use [`ROADMAP.md`](ROADMAP.md) for public direction and milestone exit gates.
+Use [`docs/STATUS.md`](docs/STATUS.md) for current integrated truth; a roadmap
+item or open pull request is not shipped behavior.
 
 The docs index at [`docs/README.md`](docs/README.md) explains precedence, historical material, and future product lanes.
 
@@ -98,7 +120,11 @@ See [`docs/STATUS.md`](docs/STATUS.md) for the precise shipped/target boundary. 
 - composed Outcomes and Mission Control destination;
 - bounded Project Waldo conversation.
 
-Not yet shipped as the final kernel: `ProjectBriefRevision`, a real multi-WorkUnit DAG, WorkUnit scheduler/WorkspaceLease concurrency, canonical SessionReceipt/WorkUnitReceipt flow, truthful final Mission Graph, final external ingress, and self-hosting proof.
+Not yet launch-proven: a packaged end-to-end Outcome journey across planning,
+execution, attached sessions, proof/review and owner closure. WorkUnit-scoped
+parallel scheduling and workspace leases, complete receipt/materialization
+flows, and the final truthful Mission Graph remain roadmap work. See the
+revision-stamped inventory in [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Development
 
@@ -116,11 +142,21 @@ API changes require `npm run api`. SQLite source changes require `npm run sqlc`.
 
 Product/kernel branches start from `beta` and target `beta`. A docs/spec/UX artifact is not evidence that runtime behavior has shipped; update `docs/STATUS.md` when implementation truth changes.
 
-## Self-hosting target
+## Launch and roadmap
 
-The first kernel milestone is **Kennel builds Kennel**: use Kennel to implement a real repository Outcome with a real WorkUnit DAG, concurrent isolated work where safe, provider recovery, structured receipts/evidence, Ready for Review, and explicit user Acceptance—while the user primarily supervises Board/Mission Control rather than raw provider transcripts.
+The first launch proof is **Kennel builds Kennel**: use Kennel for a real
+repository Outcome through grounded planning, bounded execution, attached
+provider sessions, evidence, Ready for Review and explicit user closure—while
+the user primarily supervises Board/Mission Control. Serial execution is an
+acceptable launch boundary; concurrency is enabled only when the daemon can
+truthfully enforce WorkUnit dependencies and workspace custody.
 
 See [`docs/product/kennel-dogfood-acceptance-matrix.md`](docs/product/kennel-dogfood-acceptance-matrix.md).
+
+The public [`ROADMAP.md`](ROADMAP.md) covers project understanding, governed
+Memory, capability-driven and learned orchestration, parallel execution,
+cross-harness learning, Outcome suggestions, benchmarks and ongoing UI/brand
+work.
 
 ## License
 

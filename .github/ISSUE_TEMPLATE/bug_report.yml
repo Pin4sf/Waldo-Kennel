@@ -1,0 +1,73 @@
+name: Bug report
+description: Report reproducible Kennel behavior that is broken or misleading
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Kennel. Remove credentials, private source, transcripts and other sensitive data before submitting.
+  - type: input
+    id: revision
+    attributes:
+      label: Kennel version or commit
+      description: Use the packaged version or exact Git commit when possible.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - Packaged Electron app
+        - Electron development app
+        - Web renderer preview
+        - Daemon API
+        - CLI
+        - Provider integration
+        - Documentation or build tooling
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS/version, architecture, provider and model, and whether this was a fresh profile. Do not include API keys.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Include the smallest sequence that reproduces the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include exact redacted errors and whether the state survived restart.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Additional evidence
+      description: Redacted logs, screenshots, Attempt/Outcome identifiers, or a minimal repository link.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets, credentials, private source and sensitive transcript content.
+          required: true
+        - label: This report does not disclose a security vulnerability publicly.
+          required: true
