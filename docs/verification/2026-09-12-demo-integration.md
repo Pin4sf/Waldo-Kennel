@@ -2,11 +2,13 @@
 
 Date: 2026-09-12
 
-This is a local, unpushed integration candidate based on `origin/beta`
+This record describes the local integration test performed before publication,
+based on `origin/beta`
 `f2132a83c6a09145cd38234d55097128815de432`. The candidate combines the
 completed Issue #115 governed repository-tools work with the existing shell,
-onboarding, and Mission UI lane. It does not merge, publish, deploy, or make
-an owner AcceptanceDecision.
+onboarding, and Mission UI lane. The test did not merge, publish, deploy, or
+make an owner AcceptanceDecision. Subsequent source integration and publication do
+not change the tested revision or the open runtime observations below.
 
 ## Candidate identity
 
@@ -85,3 +87,26 @@ by an authorized release owner.
    acceptance; Kennel must not infer this decision.
 4. Offline/unsupported provider behavior needs a full packaged runtime pass
    beyond the observed unverified-provider gate.
+
+## Final source integration checks
+
+Code revision `aa2b5a833289ecfb6ff5aee71c0a1814d006e706` combines the UI lane with terminal governed Attempt
+restore/resume/startup fences and destroyed-window disposal fixes. The following
+checks were freshly rerun on that combined source, with no product edits:
+
+- `go test ./...`: passed, including lifecycle, session service and Manager.
+- `go test -race ./...`: passed, including the complete SQLite/store suites.
+- `go build ./...` and `go vet ./...`: passed.
+- Frontend `npm run typecheck`: passed.
+- Frontend selected window-composition, browser-view-host,
+  agent-browser-runtime, OnboardingTour and OutcomeMissionSafety suites:
+  91 passed, 1 skipped across 5 files.
+- Full golangci-lint v2.12.2 with isolated `GOCACHE` and
+  `GOLANGCI_LINT_CACHE`: passed, **0 issues**. The first shared-cache run
+  referenced unrelated and removed worktree paths and could not filter
+  generated files; it is superseded by the isolated-cache result.
+
+These source checks do not replace the incomplete packaged UI journey above.
+The combined lifecycle fixes have not been verified through a new live UI run.
+No final combined package, installer, signing/notarization or release claim is
+made by this integration check.

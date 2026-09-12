@@ -1,9 +1,10 @@
 # Kennel status
 
-Reviewed against `origin/beta` revision `f2132a83c6a09145cd38234d55097128815de432`
-on 2026-09-12. This local integration candidate combines the completed Issue
-#115 work with the shell/onboarding/Mission UI lane; it is not pushed, merged,
-deployed or released.
+Checkpoint dated 2026-09-12, based on `beta` revision
+`f2132a83c6a09145cd38234d55097128815de432`, combining Issue #115 governed
+repository tools, the shell/onboarding/Mission UI lane, and terminal-session
+restore and desktop-disposal fixes. Branch publication is separate from
+packaged runtime verification and release readiness.
 This page separates implementation, recorded verification and remaining launch
 work. It does not claim a release or owner Acceptance.
 
@@ -93,12 +94,29 @@ not folded into Issue #115 completion. No owner Acceptance was created.
 
 A [post-canary lifecycle follow-up](verification/2026-09-12-post-canary-lifecycle-and-issue-35-delta.md)
 now blocks manual, resume, and startup restoration of a terminal governed
-Attempt and guards destroyed-window composition disposal. Full Go tests,
+Attempt and guards destroyed-window composition disposal. At source revision
+`f7d57d80c3229053d1f3ce96ab398b7d172fca2d`, full Go tests,
 focused Electron lifecycle tests, typecheck, isolated-cache lint, and a fresh
-package build pass. That package has not been launched, so the UI-driven quit
-and restart behavior remains runtime-unverified. The follow-up also records the
+package build passed, as recorded in that follow-up. That package was not
+launched. These results do not prove the fixes through the combined UI lane;
+UI-driven quit and restart behavior remains runtime-unverified. The follow-up
+also records the
 exact Issue #35 delta, including the still-open duplicate check invocation
 between the provider tool and terminal reconciliation.
+
+The [combined desktop verification](verification/2026-09-12-demo-integration.md)
+records a separate packaged UI run at code revision
+`b2c7ec908a6da2f020806ab71f77fece42cfa275`, before the lifecycle fixes.
+Onboarding, repository import, editable Contract and explicit provider
+verification worked. Native planning stayed “Waiting for the agent”; the
+daemon exited, no Plan revision was created, and execution was not reached.
+Restart restored the Project and Contract once. This is not a complete
+UI-driven Plan/execution/proof/rework/Acceptance journey. The earlier successful
+execution canary used API-created Contract/Plan state and remains distinct.
+Fresh combined-source Go tests (including the full race suite), build/vet,
+frontend typecheck and five selected
+frontend suites passed. Full lint passed with isolated caches and zero issues;
+the combined verification record retains the exact source provenance.
 
 The [PR #110 handoff](handoffs/2026-09-12-pr110-launch-fixes/HANDOFF.md)
 and [execution ledger](handoffs/2026-09-12-pr110-launch-fixes/EXECUTION-LEDGER.md)
@@ -117,13 +135,14 @@ packaged journey and owner-acceptance gates remain distinct.
 
 | Priority | Area | Current gap |
 | --- | --- | --- |
-| 1 | Autonomous proof and closure | Carry the produced artifact and governed-check result into WorkUnit-scoped Evidence/Verification, then leave the separate owner Acceptance or rework decision explicit. |
-| 2 | Evidence and Result experience | Automate artifact/check collection, complete WorkUnit-scoped proof and result review, and materialize retained outputs for downstream WorkUnits. |
-| 3 | Mission Control | Complete the direct WorkUnit DAG projection and integrated Board/List navigation while retaining the session Kanban beneath the graph. |
-| 4 | Parallel scheduling | Replace the intentional concurrency-`1` Project fence only after durable WorkspaceLease, dependency, integration, recovery and cleanup gates prove safe. |
-| 5 | Session continuity | Decide and implement historical-session inspection or engagement beyond the currently engageable active session. |
-| 6 | Release/update | Publish and test actual install/update artifacts. Package identity is verified, but the updater reports no published GitHub versions. |
-| 7 | Remaining manual acceptance | Complete applicable mobile rendering and manually verify reduced-motion behavior. |
+| 1 | Native planning and daemon recovery | Combined packaged UI remained “Waiting for the agent” and the daemon exited before a Plan existed. Root cause is not established; prove planning completion and recovery before claiming the full demo journey. |
+| 2 | Autonomous proof and closure | Automatic artifact retention and deterministic Evidence/Verification passed one bounded canary. Unify provider-tool and reconciler check invocation (currently the command runs twice), complete provenance and live negative/rework paths, and preserve separate owner Acceptance. |
+| 3 | Evidence and Result experience | Complete a cohesive Result summary and ordinary rework flow; prove retained downstream WorkUnit output materialization in a real multi-unit canary. Existing backend proof and retention are not full Result acceptance. |
+| 4 | Mission Control | Complete the direct WorkUnit DAG projection and integrated Board/List navigation while retaining the session Kanban beneath the graph. |
+| 5 | Parallel scheduling | Replace the intentional concurrency-`1` Project fence only after durable WorkspaceLease, dependency, integration, recovery and cleanup gates prove safe. |
+| 6 | Session continuity | Decide and implement historical-session inspection or engagement beyond the currently engageable active session. |
+| 7 | Release/update | Publish and test actual install/update artifacts. Package identity is verified, but the updater reports no published GitHub versions. |
+| 8 | Remaining manual acceptance | Complete applicable mobile rendering and manually verify reduced-motion behavior. |
 
 General non-repository Outcomes, supplied-document wiring and durable delivery
 also need their own integration/verification evidence; repository planning alone
@@ -137,7 +156,9 @@ A zero-exit provider session is only one part of this journey.
 
 ## Public release readiness
 
-There are no published release artifacts at this checkpoint. Installation/update
+There are no published release artifacts at this checkpoint. The DMG maker
+attempt stalled; a packaged application build does not establish a completed
+installer, signing/notarization, or an install/update release. Installation/update
 publication, CI enforcement and private security reporting still need maintainer
 work; follow the [launch checklist](../ROADMAP.md#public-release-readiness) and
 [open issues](https://github.com/Pin4sf/Waldo-Kennel/issues).
