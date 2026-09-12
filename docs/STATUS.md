@@ -1,31 +1,43 @@
 # Kennel status
 
-**Status revision:** `bf06970948078d5e3c6d564ec2c336cfc9bfaabf` (`origin/beta`, verified 2026-09-12).
-**Current integration:** PR #109 adds the native Codex packet-mode planning path on top of the fresh Outcome-first foundation and PR #107 interaction feedback. This is source/integration state, not packaged launch acceptance.
-**Current objective:** prove one usable serial Outcome Continuity loop on this exact foundation. The public milestones after launch are in [`../ROADMAP.md`](../ROADMAP.md).
+**Current integration revision:** `9e45f99de034572a7ad6d77148705e16c1bbe95a` (`beta` merge of PR #110, 2026-09-12).
+**Verification evidence revision:** `5a58434ad275a7f5078c6d50e7f714651e8d0907` (tested PR #110 head).
+**Current integration:** Merged PR #110 closes the launch fixes summarized below on top of PR #109 native Codex packet-mode planning and the Outcome-first foundation. This is implementation and verification evidence, not Outcome Acceptance or a published release.
+**Current objective:** finish one autonomous serial Outcome Continuity loop from correct WorkUnit capability delivery through artifact, proof, owner review and closure. The public milestones after launch are in [`../ROADMAP.md`](../ROADMAP.md).
 **Team boundary:** [fresh Kennel beta and Island integration](product/2026-09-10-fresh-kennel-beta-boundary.md).
 **Execution authority:** [completion handoff](superpowers/plans/2026-09-10-luna-kennel-work-completion.md).
 
-## Current beta boundary — 2026-09-12
+## PR #110 launch checkpoint — 2026-09-12
 
-Current `beta` includes direct OpenAI/Anthropic reasoning configuration,
+The checkpoint includes direct OpenAI/Anthropic reasoning configuration,
 Contract-bound interactive planning, and native Codex read-only packet-mode
-reasoning. It does not silently fall back between providers. The native path
-passes a daemon-compiled bounded packet; it does not yet provide a general
-tool-enabled planning session.
+reasoning. It does not silently fall back between providers. Repository-context
+settings have strict PATCH/persistence semantics and an advanced Settings UI;
+settings-read failures fail closed. Generated RunBriefs carry exact Contract
+criteria, approved check argv, review command and bounded context requirements.
 
-Launch remains unaccepted until a packaged real-repository journey proves the
-whole sequence through attached execution, retained proof, Ready for Review and
-explicit owner closure. The executing WorkUnit must receive the exact frozen
-criteria and validator requirements; prior real-loop review found this
-task-delivery boundary incomplete. PR #110 is an open candidate stabilization
-branch and is not included in this status revision.
+The packaged macOS application and package identity passed. In an isolated
+profile, a real Codex Attempt initialized through Codex App Server, found the
+packaged sidecar/hook path, emitted Kennel activity hooks, exited zero and
+reconciled. Plan and graph are separate views; Execution shows one Work graph
+followed by Attempt lineage, correct provider branding, current-session Engage,
+exact attention reasons and replacement controls. This closes the historical
+tested-path blocker where a symlinked Codex CLI could not find
+`codex-code-mode-host`. It does not establish native tool/plugin/approval parity
+or provider conformance across every installation.
 
-The scheduler remains serial behind the Project custody fence. A WorkUnit-scoped
-`WorkspaceLease` scheduler and truthful parallel Mission Graph remain planned
-work under ADR 0009. The sections below are retained dated implementation and
-verification evidence; where they conflict with this current boundary, this
-section and Git at the status revision take precedence.
+The real Attempt returned `needs_you` and produced no report because the
+approved WorkUnit exposed its validator command but did not derive a separate
+repository-inspection capability/tool affordance. Provider exit and Attempt
+reconciliation therefore prove launch mechanics only; no artifact,
+WorkUnit-scoped Verification or `AcceptanceDecision` was created.
+
+The scheduler remains serial with concurrency `1` behind the Project custody
+fence. A WorkUnit-scoped `WorkspaceLease` scheduler and truthful parallel
+Mission Graph remain planned work under ADR 0009. The sections below are
+retained dated implementation and verification evidence; where they conflict
+with this checkpoint, this section and Git at the verification evidence revision take
+precedence.
 
 ## Fresh-start checkpoint — 2026-09-10
 
@@ -81,20 +93,22 @@ outside this status revision.
 
 ## Confirmed remaining source gaps
 
-| Area | Current gap | Plan slice |
-|---|---|---|
-| Exact model launch | Manager.Spawn now resolves the approved exact binding before readiness and TUI/chat launch; live provider conformance and restart/recovery semantics remain unproved | L7 |
-| Runtime authority | Attempt spawn now carries an attributed normalized WorkUnit policy; Codex TUI/Chat require the exact supported capability set and `worktree/*` scope, then pin network, extra writable roots, and temp-root settings at the provider boundary. Live canary enforcement remains unproved | L7 |
-| Reasoning readiness/recovery | Local settings/secret readiness, restart reconciliation, metrics and adapter HTTP seams are implemented; live provider conformance remains unproved | L2 |
-| Grounding/replan | Bounded repository context, substantive proposal context, clarification semantics, explicit replan, and persisted assumptions/blockers are implemented; live grounded proposal evidence remains open | L3 |
-| Plan/Mission UI | Candidate Plan cards/schedule API are present; complete Board/List/Mission Graph and real desktop journey remain unaccepted | L4 |
-| Proof/continuation | UI Outcome-level proof does not satisfy scheduler WorkUnit proof scope; automated check/artifact collection and downstream workspace handoff need integration | L5 |
-| Re-entry/navigation | Bounded prior-result context and Outcome-first normal entry paths require real journey verification and cleanup | L6 |
-| Release | Packaged installation, live provider enforcement, restart, full proof/acceptance loop and measured performance remain unaccepted | L7 |
+| Priority | Area | Current gap |
+| --- | --- | --- |
+| 1 | WorkUnit capability/tool delivery | Derive and deliver bounded repository inspection/tool affordances in addition to the validator command; the verified Attempt returned `needs_you` without authoring its report. |
+| 2 | Autonomous proof and closure | Prove a fresh Outcome through artifact production, governed checks, WorkUnit-scoped Evidence/Verification and separate owner Acceptance or rework. |
+| 3 | Evidence and Result experience | Automate artifact/check collection, complete WorkUnit-scoped proof and result review, and materialize retained outputs for downstream WorkUnits. |
+| 4 | Mission Control | Complete the direct WorkUnit DAG projection and integrated Board/List navigation while retaining the session Kanban beneath the graph. |
+| 5 | Parallel scheduling | Replace the intentional concurrency-`1` Project fence only after durable WorkspaceLease, dependency, integration, recovery and cleanup gates prove safe. |
+| 6 | Session continuity | Decide and implement historical-session inspection or engagement beyond the currently engageable active session. |
+| 7 | Release/update | Publish and test actual install/update artifacts. Package identity is verified, but the updater reports no published GitHub versions. |
+| 8 | Remaining manual acceptance | Complete applicable mobile rendering and manually verify reduced-motion behavior. |
 
 The daemon correctly rejects a supplied provider different from the approved binding. The frontend still sends Project preference, so this is a client integration defect, not evidence of silent daemon rerouting.
 
-The serial scheduler currently uses a Project custody fence. Full WorkUnit WorkspaceLease parallel scheduling remains later work. Do not remove that fence merely to make a graph look concurrent.
+The serial scheduler currently uses a Project custody fence with concurrency
+`1`. Full WorkUnit WorkspaceLease parallel scheduling remains later work. Do
+not remove that fence merely to make a graph look concurrent.
 
 ## L1b capability and replay evidence
 
