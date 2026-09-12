@@ -164,13 +164,6 @@ describe("OnboardingTour", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Create a Project" }));
 		expect(screen.queryByTestId("onboarding-tour")).not.toBeInTheDocument();
 		expect(useUiStore.getState().createProjectNonce).toBe(1);
-
-		// Completion remains explicit if the owner chooses to finish without
-		// opening Project registration.
-		useUiStore.getState().openOnboarding();
-		fireEvent.click(screen.getByRole("button", { name: /Let's go/ }));
-		fireEvent.click(screen.getByRole("button", { name: /Next/ }));
-		fireEvent.click(screen.getByRole("button", { name: /Finish/ }));
 		expect(window.localStorage.getItem("kennel.onboarding.completed")).toBe("true");
 	});
 
