@@ -25,6 +25,12 @@ Scope: local verification only; no push, PR, merge, deployment or owner Acceptan
   symlink escapes and `.git` custody metadata, including concurrent path swaps.
 - The exact approved check is handed to the existing sandboxed governed-check
   runner as an argv vector; the tool accepts no arbitrary command string.
+- Replacing an existing text file preserves its exact file mode, including an
+  executable Git mode, even under a restrictive process umask.
+- A governed check is conservatively marked uncertain before launch. An
+  unconfirmed termination durably latches the private server, refuses later
+  write/check effects, survives private-server restart, and is imported into
+  canonical Outcome recovery before custody can be released.
 
 ## Direct provider probes
 
@@ -44,12 +50,12 @@ Observed Codex 0.153.4 probes:
 | `01a095a1-968b-7b90-a396-4e65cbf6e0e2` | replacement with same frozen policy | Repaired a deliberately corrupted report and passed the same exact check. |
 | `01a095ae-267c-7a23-b47d-a5de1598141f` | packaged embedded tool server | Repaired the report; `../packaged-escape.txt` was refused; the exact check passed. |
 | `01a095cb-c9b7-7aa1-85b2-d87b60f3b79a` | hardened root-bound policy, native read-only Codex | Repaired the report and passed the exact check; `.git` and `../review-escape.txt` were both refused. |
-| `01a095da-e7fd-7ab1-9473-5ec8bf45bcbe` | final packaged daemon | Repaired the report and passed the exact check; mixed-case `.GIT/config` and `../packaged-final-escape.txt` were both refused. |
+| `01a095da-e7fd-7ab1-9473-5ec8bf45bcbe` | then-current pre-repair packaged daemon | Repaired the report and passed the exact check; mixed-case `.GIT/config` and `../packaged-final-escape.txt` were both refused. |
 
 `/private/tmp/packaged-escape.txt`, `/private/tmp/review-escape.txt` and
 `/private/tmp/packaged-final-escape.txt` were absent after the probes. The
-fixture source digest remained unchanged. The final packaged daemon used for
-the last probe had SHA-256:
+fixture source digest remained unchanged. The then-current pre-repair packaged
+daemon used for the last probe had SHA-256:
 
 ```text
 1f43661ed0d908bb51adadddab4ddc96e213d5d6fe59e0145a392bb787912749
@@ -107,8 +113,9 @@ Attempt during recovery.
 
 Passed in this worktree:
 
-- two independent final branch-diff reviews: Spec and engineering/security;
-  both reported no actionable findings after their findings were fixed
+- two independent branch-diff reviews at the pre-repair checkpoint: Spec and
+  engineering/security; both reported no actionable findings after their
+  findings were fixed
 - focused Go tests for domain policy, governed tools, Codex adapter, App Server
   fail-closed behavior, runtime argv, Outcome service, prelaunch persistence,
   path-swap resistance, CLI and telemetry
@@ -129,6 +136,64 @@ The repository-wide `npm run lint` wrapper remains noisy on inherited generated
 sqlc duplication/unchecked-close findings and stale analyzer paths outside this
 worktree. The scoped lint invocation over all touched packages is clean. No
 generated file was hand-edited to conceal the inherited wrapper failure.
+
+An immutable `origin/beta` archive was analyzed separately with the same
+pinned linter. It also failed and reported 206 issues while reading the same
+stale external-worktree cache paths (86 `dupl`, 93 `errcheck`, 19 `gosec`, six
+`nilerr`, one `revive`, and one `staticcheck`). The branch-wide wrapper reported
+186 inherited/stale-path issues, while the scoped invocation over every touched
+backend package reported `0 issues`. This comparison substantiates that the
+repository-wide wrapper failure is not introduced by the Issue #115 diff; it
+also shows that cache-dependent totals are not stable enough to use as an
+acceptance signal.
+
+## Post-review final-code rerun
+
+The correctness-repair code checkpoint is
+`3192b27ea4fa659edde5320d5077755d1ab5dd6d`. A fresh packaged build from that
+checkpoint produced:
+
+- embedded daemon SHA-256
+  `aa631fbd194a38f27c8fa31ed8f1289912bd8635930c8a4afccf0c3c9de2bcd4`;
+- Electron main binary SHA-256
+  `d1383e07b3dd17b2783c3364a1df372403b6cc50c3372046f06bb85b92d12920`.
+
+The final-code canary used
+`/private/tmp/kennel-issue115-final-canary.fPP6Sr` with an isolated profile,
+data directory, and disposable Git repository. The Electron main process was
+invoked with that profile but exited before establishing an isolated window,
+consistent with an already-running single-instance application. No UI action
+is claimed. Canonical setup below was performed through the loopback API of the
+daemon embedded in the fresh package.
+
+The final-code API setup created and approved:
+
+- Outcome `out-0ea8100a-8f3f-46dd-ae28-3c3242875d96`;
+- Contract `cr-39c4bf5e-3167-4b82-84cf-7ec8133205dd`, revision 1;
+- Plan `plan-3970d2c0-c1f9-4d1b-a851-01b6311003fb`, revision 2;
+- WorkUnit `wu-1ff373c8-39db-4899-ba0e-441e2b2341f3`, frozen to Codex with
+  `provider_default` model semantics;
+- approved check `chk-0e08d2af-49ae-4ea8-98ef-2a08ba3ea986-1` with exact argv
+  `cmp source.txt report.md`;
+- run-brief core digest
+  `c7d1491078e1ebb0c36bd680ad4dc965b9ffab4c89dd6594c3c30a7e94c48c46`.
+
+Before the disposable repository had a remote default branch, Attempt
+`att-442a3772-ad9d-4999-b25c-7d3749f50b7b` returned
+`ATTEMPT_START_UNRESOLVED` and remained canonical/unconfirmed, as required. A
+local bare remote and `main` default were then added. The execution environment
+refused the next explicit `replace` recovery call because
+`confirmProviderStopped=true` is an owner assertion that can authorize duplicate
+effects under ambiguous liveness. That call was not bypassed. The isolated
+daemon was stopped cleanly, and no replacement Attempt or provider session was
+launched.
+
+Therefore the earlier packaged Outcome canary remains valid evidence at its
+recorded pre-repair revision, but the requested full replacement, execution,
+and restart sequence has **not** been repeated end-to-end on checkpoint
+`3192b27ea`. This final-code rerun proves fresh packaging, exact canonical
+Plan/route/check setup, and the safe unconfirmed-start boundary only. It does not
+upgrade the earlier runtime evidence or establish UI acceptance.
 
 ## Boundary of this evidence
 

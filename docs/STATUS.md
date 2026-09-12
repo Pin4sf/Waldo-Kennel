@@ -62,13 +62,24 @@ Codex. A real approved Outcome repaired `report.md` only in its leased worktree,
 then ran the exact frozen SHA-256 check through Kennel. The original checkout
 remained unchanged. A prelaunch workspace failure held custody until explicit
 replacement, and restart retained the two historical Attempts without replaying
-the succeeded provider session. The final packaged daemon was then re-probed
-under native read-only Codex: it repaired the disposable report, passed the
+the succeeded provider session. The then-current pre-repair packaged daemon was
+re-probed under native read-only Codex: it repaired the disposable report, passed the
 same exact check, and refused mixed-case `.GIT` custody and traversal writes.
 Exact IDs, hashes and refusal evidence are in
 the [Issue #115 verification record](verification/2026-09-12-issue-115-governed-repository-tools.md).
 This proves the bounded execution slice, not retained-artifact automation,
 WorkUnit-scoped Verification or an owner `AcceptanceDecision`.
+
+Post-review correctness repairs now preserve executable modes across governed
+text replacement and durably fence write/check effects when approved-check
+termination is unknown, including private-server restart and Outcome recovery
+before ordinary liveness observation. Fresh package and canonical Plan setup
+were repeated at code checkpoint `3192b27ea`; the disposable pre-remote Attempt
+correctly stayed unconfirmed. The environment then refused the explicit owner
+assertion required to replace that unconfirmed Attempt, so the replacement, provider
+execution, and daemon-restart half of the final-code canary remains open. The
+verification record distinguishes this API-only setup from the attempted
+Electron launch; no final-code UI interaction or owner Acceptance is claimed.
 
 The [PR #110 handoff](handoffs/2026-09-12-pr110-launch-fixes/HANDOFF.md)
 and [execution ledger](handoffs/2026-09-12-pr110-launch-fixes/EXECUTION-LEDGER.md)
