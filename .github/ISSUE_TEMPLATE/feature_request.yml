@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose one bounded user Outcome or product improvement
+title: "proposal: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired user Outcome
+      description: What should become true for a Kennel user?
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current limitation
+      description: What happens today, and how did you verify it?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Examples or evidence
+      description: Workflows, screenshots, comparable behavior, or measurements. Remove sensitive data.
+  - type: textarea
+    id: scope
+    attributes:
+      label: Suggested first slice
+      description: Optional. Keep this to a falsifiable issue-sized change rather than an entire roadmap milestone.
+  - type: textarea
+    id: risks
+    attributes:
+      label: Authority, privacy or compatibility considerations
+      description: Note provider, workspace, effect, migration, recovery or data-custody implications.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the current status and roadmap for related work.
+          required: true
+        - label: I removed credentials, private source and sensitive transcript content.
+          required: true
