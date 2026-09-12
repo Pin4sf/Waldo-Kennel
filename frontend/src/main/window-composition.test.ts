@@ -78,4 +78,16 @@ describe("createWindowComposition", () => {
 		expect(removeChildView).toHaveBeenCalledWith(view);
 		expect(close).toHaveBeenCalledOnce();
 	});
+
+	it("does not touch the destroyed BaseWindow content hierarchy during disposal", () => {
+		const { composition, mainWindow, removeChildView, removeListener } = setup();
+		mainWindow.isDestroyed = () => true;
+		removeListener.mockImplementation(() => {
+			throw new Error("Object has been destroyed");
+		});
+
+		expect(() => composition.dispose()).not.toThrow();
+		expect(removeListener).not.toHaveBeenCalled();
+		expect(removeChildView).not.toHaveBeenCalled();
+	});
 });
