@@ -120,7 +120,7 @@ func TestDeriveAttemptPresentation(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := DeriveAttemptPresentation(tc.status, tc.facts, tc.unresolvedStart, LivenessPolicy{Now: signaled.Add(time.Minute)})
+			got := DeriveAttemptPresentation(tc.status, tc.facts, tc.unresolvedStart, false, LivenessPolicy{Now: signaled.Add(time.Minute)})
 			if got.Phase != tc.wantPhase {
 				t.Fatalf("phase = %q, want %q", got.Phase, tc.wantPhase)
 			}

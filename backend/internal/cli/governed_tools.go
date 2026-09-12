@@ -12,7 +12,7 @@ import (
 )
 
 func newGovernedToolsCommand(ctx *commandContext) *cobra.Command {
-	var workspace, encodedPolicy string
+	var workspace, encodedPolicy, dataDir, sessionID string
 	cmd := &cobra.Command{Use: "governed-tools", Hidden: true, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		raw, err := base64.RawURLEncoding.DecodeString(encodedPolicy)
 		if err != nil {
@@ -22,11 +22,22 @@ func newGovernedToolsCommand(ctx *commandContext) *cobra.Command {
 		if err := json.Unmarshal(raw, &policy); err != nil {
 			return fmt.Errorf("decode governed policy: %w", err)
 		}
-		return (governedtools.Server{Policy: policy, WorkspaceRoot: workspace, In: ctx.deps.In, Out: ctx.deps.Out}).Serve(cmd.Context())
+		uncertainty, err := governedtools.NewUncertaintyStore(dataDir)
+		if err != nil {
+			return err
+		}
+		return (governedtools.Server{
+			Policy: policy, WorkspaceRoot: workspace, SessionID: domain.SessionID(sessionID),
+			In: ctx.deps.In, Out: ctx.deps.Out, UncertaintySink: uncertainty, UncertaintySource: uncertainty,
+		}).Serve(cmd.Context())
 	}}
 	cmd.Flags().StringVar(&workspace, "workspace", "", "leased workspace root")
 	cmd.Flags().StringVar(&encodedPolicy, "policy", "", "base64url frozen execution policy")
+	cmd.Flags().StringVar(&dataDir, "data-dir", "", "Kennel application data directory")
+	cmd.Flags().StringVar(&sessionID, "session", "", "governed session identity")
 	_ = cmd.MarkFlagRequired("workspace")
 	_ = cmd.MarkFlagRequired("policy")
+	_ = cmd.MarkFlagRequired("data-dir")
+	_ = cmd.MarkFlagRequired("session")
 	return cmd
 }

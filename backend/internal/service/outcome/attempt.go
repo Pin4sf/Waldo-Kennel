@@ -610,9 +610,13 @@ func (s *Service) readModel(ctx context.Context, outcomeRecord domain.Outcome, a
 		}
 	}
 	unresolvedAdmission := false
+	unresolvedCheckTermination := false
 	for _, obs := range observations {
 		if obs.Kind == domain.ObservationAdmissionAmbiguous || obs.Kind == domain.ObservationActivationAmbiguous {
 			unresolvedAdmission = true
+		}
+		if obs.Kind == domain.ObservationGovernedCheckTerminationUnknown {
+			unresolvedCheckTermination = true
 		}
 	}
 	subjectProject, ok, err := s.store.GetOutcomeProjectID(ctx, outcomeRecord.ID)
@@ -629,7 +633,7 @@ func (s *Service) readModel(ctx context.Context, outcomeRecord domain.Outcome, a
 	}
 	return AttemptView{
 		Outcome: outcomeRecord, Attempt: attempt, Sessions: sessions, Observations: observations, Receipts: receipts, Fence: fence,
-		Presentation: domain.DeriveAttemptPresentation(attempt.Status, facts, unresolvedAdmission, domain.LivenessPolicy{Now: s.clock(), StaleHeartbeatAfter: s.staleHeartbeat}),
+		Presentation: domain.DeriveAttemptPresentation(attempt.Status, facts, unresolvedAdmission, unresolvedCheckTermination, domain.LivenessPolicy{Now: s.clock(), StaleHeartbeatAfter: s.staleHeartbeat}),
 	}, nil
 }
 

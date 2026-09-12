@@ -16,6 +16,17 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
+type governedCheckUncertaintyFake struct {
+	fact ports.GovernedCheckUncertainty
+}
+
+func (f governedCheckUncertaintyFake) GovernedCheckUncertainty(_ context.Context, sessionID domain.SessionID) (ports.GovernedCheckUncertainty, bool, error) {
+	if f.fact.SessionID != sessionID {
+		return ports.GovernedCheckUncertainty{}, false, nil
+	}
+	return f.fact, true, nil
+}
+
 // newAttemptHarness builds a fully wired Act & Observe fixture: an in-memory
 // store, an execution seam double, and a heartbeat table. The returned service
 // has already created the Local Focus Ledger Outcome and gotten its v0 plan
@@ -1376,6 +1387,64 @@ func TestLivenessLoopReconcilesLegitimateZeroExit(t *testing.T) {
 	if reread.Attempt.Status != domain.AttemptReconciled {
 		t.Fatalf("status = %s, want reconciled", reread.Attempt.Status)
 	}
+}
+
+func TestLivenessLoopBlocksCompletionAfterUnknownGovernedCheckTerminationUntilOwnerReconciles(t *testing.T) {
+	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	spawner.completionBoundary = domain.AttemptCompletionProcessExit
+	view, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := domain.SessionID(view.Sessions[0].SessionID)
+	exitCode := 0
+	rec := heartbeats.sessions[sessionID]
+	rec.IsTerminated = true
+	rec.Metadata.SupervisedProcessExitCode = &exitCode
+	rec.Metadata.SupervisedProcessExitReason = domain.SupervisedExitReasonExited
+	heartbeats.sessions[sessionID] = rec
+	svc.WithGovernedCheckUncertainty(governedCheckUncertaintyFake{fact: ports.GovernedCheckUncertainty{
+		SessionID: sessionID, CheckID: "check-1", TerminationUnknown: true,
+		TimedOut: true, EnforcedBy: "test-fence", ObservedAt: time.Now().UTC(),
+	}})
+
+	for i := 0; i < 2; i++ {
+		if err := svc.EvaluateAttemptLiveness(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	blocked, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blocked.Attempt.Status != domain.AttemptRunning || blocked.Fence == nil {
+		t.Fatalf("unknown termination must retain running custody: status=%s fence=%v", blocked.Attempt.Status, blocked.Fence)
+	}
+	if !blocked.Presentation.Unconfirmed || !strings.Contains(blocked.Presentation.NextAction, "effects in flight") {
+		t.Fatalf("presentation did not surface unknown check effects: %+v", blocked.Presentation)
+	}
+	unknownObservations := 0
+	for _, observation := range blocked.Observations {
+		if observation.Kind == domain.ObservationGovernedCheckTerminationUnknown {
+			unknownObservations++
+		}
+	}
+	if unknownObservations != 1 {
+		t.Fatalf("unknown termination observations = %d, want exactly one", unknownObservations)
+	}
+	if _, err := svc.RecoverAttempt(context.Background(), outcomeID, view.Attempt.ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReplace}); err == nil {
+		t.Fatal("provider exit alone must not release custody for an unknown check process tree")
+	}
+	recovered, err := svc.RecoverAttempt(context.Background(), outcomeID, view.Attempt.ID, outcome.RecoveryInput{
+		Action: outcome.RecoveryActionReplace, ConfirmProviderStopped: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered.Attempt.Attempt.Status != domain.AttemptLost || recovered.Attempt.Fence != nil {
+		t.Fatalf("owner-confirmed reconciliation = status %s fence %v", recovered.Attempt.Attempt.Status, recovered.Attempt.Fence)
+	}
+	assertReplacementStartable(t, svc, spawner, outcomeID, planID)
 }
 
 // TestLivenessLoopClassifiesMissingExitCodeAsFailed covers a durably

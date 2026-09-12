@@ -158,7 +158,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		if err := p.ValidateExecutionPolicy(ctx, cfg.Config, *cfg.ExecutionPolicy); err != nil {
 			return nil, err
 		}
-		governedArgs, err := governedRepositoryArgs(*cfg.ExecutionPolicy, cfg.WorkspacePath)
+		governedArgs, err := governedRepositoryArgs(*cfg.ExecutionPolicy, cfg.WorkspacePath, cfg.DataDir, cfg.SessionID)
 		if err != nil {
 			return nil, err
 		}
@@ -212,7 +212,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 		if err := p.ValidateExecutionPolicy(ctx, cfg.Config, *cfg.ExecutionPolicy); err != nil {
 			return nil, false, err
 		}
-		governedArgs, err := governedRepositoryArgs(*cfg.ExecutionPolicy, cfg.Session.WorkspacePath)
+		governedArgs, err := governedRepositoryArgs(*cfg.ExecutionPolicy, cfg.Session.WorkspacePath, cfg.DataDir, cfg.Session.ID)
 		if err != nil {
 			return nil, false, err
 		}
@@ -237,7 +237,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 	})
 }
 
-func governedRepositoryArgs(policy domain.AttemptExecutionPolicy, workspace string) ([]string, error) {
+func governedRepositoryArgs(policy domain.AttemptExecutionPolicy, workspace, dataDir, sessionID string) ([]string, error) {
 	if _, err := codexpolicy.SandboxFor(policy); err != nil {
 		return nil, err
 	}
@@ -247,6 +247,9 @@ func governedRepositoryArgs(policy domain.AttemptExecutionPolicy, workspace stri
 	}
 	if err := policy.ValidateWorkspaceRoot(canonicalWorkspace); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(dataDir) == "" || !filepath.IsAbs(filepath.Clean(dataDir)) {
+		return nil, fmt.Errorf("codex governed repository tools require session identity and an absolute Kennel data directory")
 	}
 	binary, err := os.Executable()
 	if err != nil {
@@ -268,7 +271,7 @@ func governedRepositoryArgs(policy domain.AttemptExecutionPolicy, workspace stri
 	for _, name := range enabledTools {
 		quotedTools = append(quotedTools, strconv.Quote(name))
 	}
-	mcp := "mcp_servers={kennel_governed={command=" + strconv.Quote(binary) + ",args=[" + strconv.Quote("governed-tools") + "," + strconv.Quote("--workspace") + "," + strconv.Quote(canonicalWorkspace) + "," + strconv.Quote("--policy") + "," + strconv.Quote(encoded) + "],required=true,enabled_tools=[" + strings.Join(quotedTools, ",") + "],default_tools_approval_mode=\"approve\"}}"
+	mcp := "mcp_servers={kennel_governed={command=" + strconv.Quote(binary) + ",args=[" + strconv.Quote("governed-tools") + "," + strconv.Quote("--workspace") + "," + strconv.Quote(canonicalWorkspace) + "," + strconv.Quote("--policy") + "," + strconv.Quote(encoded) + "," + strconv.Quote("--data-dir") + "," + strconv.Quote(filepath.Clean(dataDir)) + "," + strconv.Quote("--session") + "," + strconv.Quote(sessionID) + "],required=true,enabled_tools=[" + strings.Join(quotedTools, ",") + "],default_tools_approval_mode=\"approve\"}}"
 	args := []string{
 		// Built-in or newly introduced native effect tools remain unable to
 		// mutate the repository. Only the separately governed MCP process owns

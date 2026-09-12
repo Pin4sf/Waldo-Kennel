@@ -610,8 +610,10 @@ func TestGetLaunchCommandMapsAttemptExecutionPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
+		DataDir:         canonicalTempDir(t),
 		Permissions:     ports.PermissionModeBypassPermissions,
 		ExecutionPolicy: &policy,
+		SessionID:       "session-read-only",
 		WorkspacePath:   workspace,
 	})
 	if err != nil {
@@ -718,12 +720,18 @@ func TestGetLaunchCommandPinsWorkspaceWriteBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{ExecutionPolicy: &policy, WorkspacePath: workspace})
+	dataDir := canonicalTempDir(t)
+	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
+		DataDir: dataDir, ExecutionPolicy: &policy, SessionID: "session-write", WorkspacePath: workspace,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !containsSubsequence(cmd, []string{"--sandbox", "read-only"}) || !contains(cmd, "--ignore-user-config") || !containsSubsequence(cmd, []string{"--disable", "shell_tool"}) {
 		t.Fatalf("command does not pin the workspace-write boundary: %#v", cmd)
+	}
+	if encoded := strings.Join(cmd, " "); !strings.Contains(encoded, `"--data-dir","`+dataDir+`","--session","session-write"`) {
+		t.Fatalf("command does not bind governed uncertainty state: %#v", cmd)
 	}
 }
 
@@ -1108,9 +1116,10 @@ func TestGetRestoreCommandPinsGovernedWorkspaceWriteBoundary(t *testing.T) {
 	}
 	cmd, ok, err := plugin.GetRestoreCommand(context.Background(), ports.RestoreConfig{
 		Config:          ports.AgentConfig{Model: "approved-model"},
+		DataDir:         canonicalTempDir(t),
 		Permissions:     ports.PermissionModeBypassPermissions,
 		ExecutionPolicy: &policy,
-		Session:         ports.SessionRef{WorkspacePath: workspace, Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "thread-123"}},
+		Session:         ports.SessionRef{ID: "session-restore", WorkspacePath: workspace, Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "thread-123"}},
 	})
 	if err != nil || !ok {
 		t.Fatalf("restore = (ok=%v, err=%v), want ok", ok, err)
@@ -1144,8 +1153,9 @@ func TestGetRestoreCommandRejectsDifferentWorkspaceThanFrozenPolicy(t *testing.T
 		t.Fatal(err)
 	}
 	_, _, err = (&Plugin{}).GetRestoreCommand(context.Background(), ports.RestoreConfig{
+		DataDir:         canonicalTempDir(t),
 		ExecutionPolicy: &policy,
-		Session: ports.SessionRef{WorkspacePath: canonicalTempDir(t), Metadata: map[string]string{
+		Session: ports.SessionRef{ID: "session-mismatch", WorkspacePath: canonicalTempDir(t), Metadata: map[string]string{
 			ports.MetadataKeyAgentSessionID: "thread-123",
 		}},
 	})

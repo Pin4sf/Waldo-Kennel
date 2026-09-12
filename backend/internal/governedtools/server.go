@@ -20,6 +20,7 @@ import (
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/governedcheck"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const maxTextBytes = 1 << 20
@@ -40,12 +41,16 @@ type response struct {
 
 // Server serves only the repository tools represented by one frozen policy.
 type Server struct {
-	Policy        domain.AttemptExecutionPolicy
-	WorkspaceRoot string
-	In            io.Reader
-	Out           io.Writer
-	RunCheck      func(context.Context, governedcheck.Request) (governedcheck.Result, error)
-	root          *os.Root
+	Policy            domain.AttemptExecutionPolicy
+	WorkspaceRoot     string
+	SessionID         domain.SessionID
+	In                io.Reader
+	Out               io.Writer
+	RunCheck          func(context.Context, governedcheck.Request) (governedcheck.Result, error)
+	UncertaintySink   ports.GovernedCheckUncertaintySink
+	UncertaintySource ports.GovernedCheckUncertaintySource
+	root              *os.Root
+	effectsBlocked    bool
 }
 
 // Serve runs the bounded MCP server until its stdio input closes.
@@ -60,6 +65,16 @@ func (s Server) Serve(ctx context.Context) error {
 	s.WorkspaceRoot = root
 	if err := s.Policy.ValidateWorkspaceRoot(root); err != nil {
 		return err
+	}
+	if s.Policy.Has(domain.CapabilityWorktreeExec) && (s.UncertaintySink == nil || s.UncertaintySource == nil || strings.TrimSpace(string(s.SessionID)) == "") {
+		return errors.New("governed check execution requires durable uncertainty storage")
+	}
+	if s.Policy.Has(domain.CapabilityWorktreeExec) {
+		if _, found, err := s.UncertaintySource.GovernedCheckUncertainty(ctx, s.SessionID); err != nil {
+			return fmt.Errorf("read existing governed check uncertainty: %w", err)
+		} else if found {
+			s.effectsBlocked = true
+		}
 	}
 	s.root, err = os.OpenRoot(root)
 	if err != nil {
@@ -101,7 +116,7 @@ func (s Server) Serve(ctx context.Context) error {
 	return scanner.Err()
 }
 
-func (s Server) handle(ctx context.Context, req request) (interface{}, error) {
+func (s *Server) handle(ctx context.Context, req request) (interface{}, error) {
 	switch req.Method {
 	case "initialize":
 		return map[string]interface{}{"protocolVersion": "2025-06-18", "capabilities": map[string]interface{}{"tools": map[string]interface{}{}}, "serverInfo": map[string]interface{}{"name": "kennel-governed-repository", "version": "1"}}, nil
@@ -135,7 +150,7 @@ func tool(name, description string, properties map[string]interface{}, required 
 	return map[string]interface{}{"name": name, "description": description, "inputSchema": map[string]interface{}{"type": "object", "properties": properties, "required": required, "additionalProperties": false}}
 }
 
-func (s Server) tools() []map[string]interface{} {
+func (s *Server) tools() []map[string]interface{} {
 	path := map[string]interface{}{"path": map[string]interface{}{"type": "string", "description": "Workspace-relative path"}}
 	var tools []map[string]interface{}
 	if s.Policy.Has(domain.CapabilityWorktreeRead) {
@@ -165,7 +180,7 @@ func stringArg(args map[string]interface{}, key string) (string, error) {
 	return v, nil
 }
 
-func (s Server) call(ctx context.Context, name string, args map[string]interface{}) (string, error) {
+func (s *Server) call(ctx context.Context, name string, args map[string]interface{}) (string, error) {
 	switch name {
 	case "list_repository":
 		if !s.Policy.Has(domain.CapabilityWorktreeRead) {
@@ -238,6 +253,9 @@ func (s Server) call(ctx context.Context, name string, args map[string]interface
 		}
 		return string(b), nil
 	case "write_text_file":
+		if s.effectsBlocked {
+			return "", errors.New("governed effects blocked by unknown check termination; reconcile the Attempt before continuing")
+		}
 		if !s.Policy.Has(domain.CapabilityWorktreeWrite) {
 			return "", errors.New("worktree.write was not granted")
 		}
@@ -260,15 +278,22 @@ func (s Server) call(ctx context.Context, name string, args map[string]interface
 		if err := s.root.MkdirAll(parent, 0o750); err != nil {
 			return "", err
 		}
+		mode := fs.FileMode(0o600)
+		if existing, statErr := s.root.Stat(path); statErr == nil {
+			if !existing.Mode().IsRegular() {
+				return "", errors.New("write target is not a regular file")
+			}
+			mode = existing.Mode().Perm()
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return "", statErr
+		}
 		tmpPath := filepath.Join(parent, ".kennel-write-"+uuid.NewString())
-		tmp, err := s.root.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		tmp, err := s.root.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 		if err != nil {
 			return "", err
 		}
 		defer func() { _ = s.root.Remove(tmpPath) }()
-		if _, err = tmp.WriteString(content); err == nil {
-			err = tmp.Chmod(0o600)
-		}
+		_, err = tmp.WriteString(content)
 		if closeErr := tmp.Close(); err == nil {
 			err = closeErr
 		}
@@ -280,6 +305,9 @@ func (s Server) call(ctx context.Context, name string, args map[string]interface
 		}
 		return "wrote " + filepath.ToSlash(raw), nil
 	case "run_approved_check":
+		if s.effectsBlocked {
+			return "", errors.New("governed effects blocked by unknown check termination; reconcile the Attempt before continuing")
+		}
 		id, err := stringArg(args, "check_id")
 		if err != nil {
 			return "", err
@@ -288,12 +316,42 @@ func (s Server) call(ctx context.Context, name string, args map[string]interface
 			if check.ID.String() != id {
 				continue
 			}
+			// Publish denial evidence before launching any process. The marker is
+			// cleared only after the runner confirms terminal process-tree state,
+			// so an MCP/provider crash between those boundaries fails closed.
+			pending := ports.GovernedCheckUncertainty{
+				SessionID: s.SessionID, CheckID: check.ID, TerminationUnknown: true,
+				EnforcedBy: "pending", ObservedAt: time.Now().UTC(),
+			}
+			if err := s.UncertaintySink.RecordGovernedCheckUncertainty(context.WithoutCancel(ctx), pending); err != nil {
+				s.effectsBlocked = true
+				return "", fmt.Errorf("prepare governed check uncertainty fence: %w", err)
+			}
 			run := s.RunCheck
 			if run == nil {
 				run = governedcheck.Run
 			}
 			result, runErr := run(ctx, governedcheck.Request{Policy: s.Policy, WorkspaceRoot: s.WorkspaceRoot, Argv: check.Argv, Timeout: time.Duration(check.TimeoutSeconds) * time.Second})
-			text := fmt.Sprintf("exit_code=%d enforced_by=%s\n%s", result.ExitCode, result.EnforcedBy, result.Output)
+			text := fmt.Sprintf("exit_code=%d enforced_by=%s timed_out=%t cancelled=%t termination_unknown=%t\n%s", result.ExitCode, result.EnforcedBy, result.TimedOut, result.Cancelled, result.TerminationUnknown, result.Output)
+			if result.TerminationUnknown {
+				s.effectsBlocked = true
+				fact := ports.GovernedCheckUncertainty{
+					SessionID: s.SessionID, CheckID: check.ID, TerminationUnknown: true,
+					TimedOut: result.TimedOut, Cancelled: result.Cancelled, EnforcedBy: result.EnforcedBy,
+					ObservedAt: time.Now().UTC(),
+				}
+				if recordErr := s.UncertaintySink.RecordGovernedCheckUncertainty(context.WithoutCancel(ctx), fact); recordErr != nil {
+					runErr = errors.Join(runErr, fmt.Errorf("record unknown check termination: %w", recordErr))
+				}
+				if runErr == nil {
+					runErr = errors.New("governed check process termination is unknown")
+				}
+			} else if clearErr := s.UncertaintySink.ClearGovernedCheckUncertainty(context.WithoutCancel(ctx), s.SessionID); clearErr != nil {
+				s.effectsBlocked = true
+				runErr = errors.Join(runErr, fmt.Errorf("clear governed check uncertainty fence: %w", clearErr))
+			} else if runErr == nil && (result.TimedOut || result.Cancelled) {
+				runErr = errors.New("governed check did not complete")
+			}
 			return text, runErr
 		}
 		return "", fmt.Errorf("check %q is not approved", id)
