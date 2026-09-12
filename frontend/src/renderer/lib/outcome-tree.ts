@@ -20,7 +20,7 @@ export type OutcomeTreeNode<T extends OutcomeTreeFacts> = {
 };
 
 /** The Work stage a click on an Outcome row should land on. */
-export type OutcomeDestinationStage = "decompose" | "decide_authorize";
+export type OutcomeDestinationStage = "decompose" | "decide_authorize" | "act_observe" | "prove_close";
 
 /**
  * Group a project's flat Outcome list into roots and their contributors.
@@ -60,6 +60,12 @@ export function buildOutcomeTree<T extends OutcomeTreeFacts>(outcomes: readonly 
  * Outcome somewhere the owner has not agreed to go. The row's explicit Mission
  * Control action is the way in for those.
  */
-export function outcomeDestinationStage<T extends OutcomeTreeFacts>(node: OutcomeTreeNode<T>): OutcomeDestinationStage {
-	return node.contributors.length > 0 ? "decompose" : "decide_authorize";
+export function outcomeDestinationStage<T extends OutcomeTreeFacts>(
+	node: OutcomeTreeNode<T>,
+	attentionLane?: string,
+): OutcomeDestinationStage {
+	if (node.contributors.length > 0) return "decompose";
+	if (attentionLane === "needsYou" || attentionLane === "observe") return "act_observe";
+	if (attentionLane === "review") return "prove_close";
+	return "decide_authorize";
 }

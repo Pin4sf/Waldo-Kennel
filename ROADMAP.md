@@ -61,6 +61,38 @@ Exit gates:
 Current launch truth and known gaps belong in [`docs/STATUS.md`](docs/STATUS.md),
 not in this roadmap.
 
+### PR #110 launch checkpoint
+
+Merged PR #110 closes several launch foundations: exact
+Contract/check/context delivery in the RunBrief, strict repository-context
+settings, replacement/reconciliation corrections, packaged hook/runfile and
+Codex sidecar discovery, provider-correct Attempt cards, actionable attention,
+and separate Plan/graph views. At its tested head `5a58434ad`, a packaged Codex
+Attempt initialized through Codex App Server, emitted Kennel hooks, exited zero
+and reconciled.
+
+That canary did not complete the Outcome. Its WorkUnit exposed the validator
+command but no repository-inspection capability or equivalent tool affordance,
+so the agent truthfully returned `needs_you` and authored no report. The next
+launch slices, in order, are:
+
+1. derive and deliver the correct bounded repository capabilities/tool
+   affordances for an approved WorkUnit;
+2. produce a real artifact, run governed checks, bind WorkUnit-scoped Evidence
+   and Verification, and reach separate owner review/Acceptance or rework;
+3. finish automated artifact/check collection, result review and downstream
+   workspace handoff;
+4. complete the direct WorkUnit DAG projection and integrated Board/List
+   navigation;
+5. decide and implement inspection/engagement for historical sessions beyond
+   the currently engageable active session;
+6. publish and test the release/update path, then complete applicable mobile
+   and manual reduced-motion acceptance.
+
+The scheduler concurrency remains intentionally `1`. WorkspaceLease-based
+parallel execution stays in its later milestone, and no graph should imply that
+authority before it exists.
+
 ### Public release readiness
 
 Repository and release administration is part of launch readiness. This list is

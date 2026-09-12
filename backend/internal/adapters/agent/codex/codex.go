@@ -61,6 +61,12 @@ func (p *Plugin) ExitDetectionMode() ports.AgentExitDetectionMode {
 	return ports.AgentExitDetectionSupervisor
 }
 
+// GovernedCompletionBoundary reports that a governed Codex session's
+// completion is bound to its supervised process exit.
+func (p *Plugin) GovernedCompletionBoundary() domain.AttemptCompletionBoundary {
+	return domain.AttemptCompletionProcessExit
+}
+
 // SteersActiveTurn is true: submitting input to the codex TUI mid-turn steers
 // the running turn rather than being swallowed or queued, so Kennel may write an
 // unsolicited coordination message into an active codex session. See
@@ -174,6 +180,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		SystemPromptFile: cfg.SystemPromptFile,
 		Permission:       agentruntime.PermissionPolicy(permission),
 		ProviderArgs:     providerArgs,
+		OneShot:          cfg.ExecutionPolicy != nil,
 	})
 }
 
@@ -234,6 +241,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 		SystemPromptFile: cfg.SystemPromptFile,
 		Permission:       agentruntime.PermissionPolicy(permission),
 		ProviderArgs:     providerArgs,
+		OneShot:          cfg.ExecutionPolicy != nil,
 	})
 }
 
@@ -428,7 +436,7 @@ func ResolveCodexBinary(ctx context.Context) (string, error) {
 	}
 
 	if path, err := exec.LookPath("codex"); err == nil && path != "" {
-		return path, nil
+		return resolveCodexExecutable(path), nil
 	}
 
 	candidates := []string{
@@ -460,7 +468,7 @@ func ResolveCodexBinary(ctx context.Context) (string, error) {
 
 	for _, candidate := range candidates {
 		if fileExists(candidate) {
-			return candidate, nil
+			return resolveCodexExecutable(candidate), nil
 		}
 		if err := ctx.Err(); err != nil {
 			return "", err
@@ -468,6 +476,20 @@ func ResolveCodexBinary(ctx context.Context) (string, error) {
 	}
 
 	return "", fmt.Errorf("codex: %w", ports.ErrAgentBinaryNotFound)
+}
+
+// resolveCodexExecutable preserves the provider's installation boundary when a
+// PATH entry is a symlink. Native Codex distributions can ship required
+// sidecars beside the real executable and locate them relative to argv[0];
+// launching the symlink path would make Codex search beside the shim instead.
+func resolveCodexExecutable(path string) string {
+	if runtime.GOOS == "windows" {
+		return resolveNativeWindowsCodex(path)
+	}
+	if evaluated, err := filepath.EvalSymlinks(path); err == nil && evaluated != "" {
+		return evaluated
+	}
+	return path
 }
 
 func resolveNativeWindowsCodex(path string) string {

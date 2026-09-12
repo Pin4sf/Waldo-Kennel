@@ -16,8 +16,8 @@ import { formatTimeCompact } from "../../lib/format-time";
 import { prBrowserUrl, sessionPRDisplaySummaries } from "../../lib/pr-display";
 import type { AttentionZone } from "../../lib/session-presentation";
 import type { SessionStatus } from "../../types/workspace";
+import { AgentAvatar } from "../AgentAvatar";
 import { ProductExternalLink } from "../ProductExternalLink";
-import waldoAgentMarkUrl from "../../../../../packages/kennel-island/public/figma/agent-waldo.svg";
 
 /**
  * Adapts one Outcome's attempt lineage onto the same Board/List building blocks
@@ -165,19 +165,6 @@ function attemptCardLabels(t: TFunction) {
 	};
 }
 
-function AttemptAgentMark({ provider }: { provider: string }) {
-	const { t } = useTranslation();
-	return (
-		<span
-			aria-label={t("shell.agentAria", { provider })}
-			className="inline-flex h-7 w-[30px] shrink-0 items-center justify-center"
-			role="img"
-		>
-			<img alt="" aria-hidden="true" className="block h-7 w-[30px]" src={waldoAgentMarkUrl} />
-		</span>
-	);
-}
-
 function EngageAttemptButton({ onEngage }: { onEngage: () => void }) {
 	const { t } = useTranslation();
 	return (
@@ -265,7 +252,7 @@ export function AttemptCardAdapter({
 			interactive={presentation.isCurrent}
 			labels={attemptCardLabels(t)}
 			onOpen={presentation.isCurrent ? onEngage : undefined}
-			renderAvatar={(provider) => <AttemptAgentMark provider={provider} />}
+			renderAvatar={(provider) => <AgentAvatar className="h-7 w-[30px]" provider={provider} />}
 			session={presentation}
 			translate={translate}
 		/>
@@ -294,7 +281,7 @@ export function AttemptRowAdapter({
 			interactive={presentation.isCurrent}
 			labels={attemptCardLabels(t)}
 			onOpen={presentation.isCurrent ? onEngage : undefined}
-			renderAvatar={(provider) => <AttemptAgentMark provider={provider} />}
+			renderAvatar={(provider) => <AgentAvatar className="h-7 w-[30px]" provider={provider} />}
 			session={presentation}
 			translate={translate}
 		/>

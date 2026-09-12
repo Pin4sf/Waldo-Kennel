@@ -1,12 +1,32 @@
 package outcome
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
+
+type durableReplayCheckStore struct{ run ports.AttemptCheckRun }
+
+func (s *durableReplayCheckStore) ReserveAttemptCheckRun(context.Context, ports.AttemptCheckRun) error {
+	return nil
+}
+func (s *durableReplayCheckStore) GetAttemptCheckRun(context.Context, domain.AttemptID, domain.ApprovedCheckID, string) (ports.AttemptCheckRun, bool, error) {
+	return s.run, true, nil
+}
+func (s *durableReplayCheckStore) ListAttemptCheckRuns(context.Context, domain.AttemptID, string) ([]ports.AttemptCheckRun, error) {
+	return []ports.AttemptCheckRun{s.run}, nil
+}
+func (s *durableReplayCheckStore) RecordAttemptCheckObservation(context.Context, ports.AttemptCheckRun) error {
+	return nil
+}
+func (s *durableReplayCheckStore) MarkAttemptCheckRunUnknown(context.Context, domain.AttemptID, domain.ApprovedCheckID, string, time.Time) error {
+	return nil
+}
 
 // passingObservation is a check that passed AND was shown to depend on the
 // work: it failed against a workspace holding none of it. That second half is
@@ -133,6 +153,34 @@ func TestCheckRequestKey_IsPerAttemptPerArtifactPerCheck(t *testing.T) {
 		if other == base {
 			t.Fatalf("distinct observations shared request key %q", base)
 		}
+	}
+}
+
+func TestReloadRecordedCheckRunUsesDurableTimingForReplayFingerprint(t *testing.T) {
+	check := domain.ApprovedCheck{ID: "chk-replay", CriterionID: "crit-a", Argv: []string{"true"}, TimeoutSeconds: 30}
+	reservedAt := time.Unix(100, 0).UTC()
+	endedAt := time.Unix(103, 0).UTC()
+	store := &durableReplayCheckStore{run: ports.AttemptCheckRun{
+		AttemptID: "att-replay", CheckID: check.ID, ArtifactVersion: "artifact-v1", State: ports.CheckRunObserved,
+		ReservedAt: reservedAt,
+		Observation: ports.AttemptCheckObservation{
+			ArtifactVersion: "artifact-v1", Ran: true, Passed: true,
+			StartedAt: reservedAt, EndedAt: endedAt,
+		},
+	}}
+	svc := &Service{checkRuns: store}
+	first, err := svc.reloadRecordedCheckRun(context.Background(), "att-replay", "artifact-v1", check)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayed, err := svc.reloadRecordedCheckRun(context.Background(), "att-replay", "artifact-v1", check)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstSummary, firstDetail := checkNarrative(first.Observation, first.ArtifactChanged, first.ObservedArtifactVersion)
+	replaySummary, replayDetail := checkNarrative(replayed.Observation, replayed.ArtifactChanged, replayed.ObservedArtifactVersion)
+	if firstSummary != replaySummary || firstDetail != replayDetail || !strings.Contains(firstDetail, "durationMs=3000") {
+		t.Fatalf("durable proof narrative drifted: first=%q/%q replay=%q/%q", firstSummary, firstDetail, replaySummary, replayDetail)
 	}
 }
 

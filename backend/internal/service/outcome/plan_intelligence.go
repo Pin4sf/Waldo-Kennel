@@ -54,7 +54,11 @@ func (s *Service) draftPlanWithProvenance(
 	}); ok {
 		briefSource = candidate
 	}
-	request.RepositoryContext, projectErr = intelligencesvc.BuildRepositoryContext(ctx, project, briefSource)
+	limits, projectErr := s.repositoryContextLimits(ctx)
+	if projectErr != nil {
+		return domain.PlanDraftProposal{}, projectErr
+	}
+	request.RepositoryContext, projectErr = intelligencesvc.BuildRepositoryContext(ctx, project, briefSource, limits)
 	if projectErr != nil {
 		return domain.PlanDraftProposal{}, projectErr
 	}

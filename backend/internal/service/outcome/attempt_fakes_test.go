@@ -40,6 +40,14 @@ type attemptFakeStore struct {
 
 	// renewals counts fence-lease refreshes the liveness loop performs.
 	renewals int
+
+	// injectRunningTerminationFailureAt, when "observation" or "release",
+	// fires once inside TerminateRunningAttemptWithObservation at that stage
+	// and returns an error before any state is mutated — modeling the real
+	// store's single all-or-nothing transaction, where a mid-operation
+	// failure rolls back the status transition too instead of stranding a
+	// partial commit.
+	injectRunningTerminationFailureAt string
 }
 
 func newAttemptFakeStore() *attemptFakeStore {
@@ -175,6 +183,65 @@ func (f *attemptFakeStore) FailAttemptBeforeLaunch(_ context.Context, in ports.A
 		return observation, nil
 	}
 	return domain.AttemptObservation{}, errors.New("queued attempt required")
+}
+
+// TerminateRunningAttemptWithObservation mirrors the real store's single
+// atomic transaction: the status transition, the observation append, and
+// (when ReleaseReason is set) the custody release either all land together
+// or none do. An injected failure at either the "observation" or "release"
+// stage returns an error with NO state mutated at all, including the status
+// transition — proving a mid-operation failure can never leave the Attempt
+// terminal with its fence still held.
+func (f *attemptFakeStore) TerminateRunningAttemptWithObservation(_ context.Context, in ports.AttemptRunningTermination) (domain.AttemptObservation, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i, attempt := range f.attempts[in.OutcomeID] {
+		if attempt.ID != in.AttemptID || attempt.Status != domain.AttemptRunning {
+			continue
+		}
+		if !domain.AttemptTransitionLegal(domain.AttemptRunning, in.TargetStatus) {
+			return domain.AttemptObservation{}, false, errors.New("illegal attempt status transition")
+		}
+		if f.injectRunningTerminationFailureAt == "observation" {
+			f.injectRunningTerminationFailureAt = ""
+			return domain.AttemptObservation{}, false, errors.New("injected observation write failure")
+		}
+		observation := domain.AttemptObservation{
+			ID:        "obs-" + strings.ToLower(in.ObservationKind) + "-" + strconv.Itoa(len(f.obs[in.AttemptID])+1),
+			AttemptID: in.AttemptID, Seq: int64(len(f.obs[in.AttemptID]) + 1),
+			Kind: in.ObservationKind, Payload: in.ObservationPayload, CreatedAt: in.At,
+		}
+		if err := observation.Validate(); err != nil {
+			return domain.AttemptObservation{}, false, err
+		}
+		var fenceSubject string
+		var fenceIndex int
+		var foundFence bool
+		if in.ReleaseReason != "" {
+			for subject, history := range f.fences {
+				for j, fence := range history {
+					if fence.AttemptID == in.AttemptID && fence.Open() {
+						fenceSubject, fenceIndex, foundFence = subject, j, true
+					}
+				}
+			}
+			if f.injectRunningTerminationFailureAt == "release" {
+				f.injectRunningTerminationFailureAt = ""
+				return domain.AttemptObservation{}, false, errors.New("injected custody release failure")
+			}
+		}
+		// Nothing durable is written until every step that can still fail has
+		// succeeded, mirroring the real store's single-transaction commit.
+		f.attempts[in.OutcomeID][i].Status = in.TargetStatus
+		f.attempts[in.OutcomeID][i].UpdatedAt = in.At
+		f.obs[in.AttemptID] = append(f.obs[in.AttemptID], observation)
+		if foundFence {
+			f.fences[fenceSubject][fenceIndex].ReleasedAt = in.At
+			f.fences[fenceSubject][fenceIndex].ReleaseReason = in.ReleaseReason
+		}
+		return observation, true, nil
+	}
+	return domain.AttemptObservation{}, false, nil
 }
 
 // openFenceLocked resolves the open fence over a subject. ok=false when free.
@@ -376,10 +443,11 @@ type fakeSpawner struct {
 	// a clean proven stop whose workspace was freed. Tests inject the
 	// dirty-preserved shape {ProviderStopped:true, WorkspaceFreed:false} to
 	// prove workspace preservation is not provider liveness.
-	terminateResult *ports.TerminationResult
-	terminated      []string
-	spawned         []ports.AttemptSpawnRequest
-	sessionN        int
+	terminateResult    *ports.TerminationResult
+	terminated         []string
+	spawned            []ports.AttemptSpawnRequest
+	completionBoundary domain.AttemptCompletionBoundary
+	sessionN           int
 }
 
 func (f *fakeSpawner) ProfileReadiness(_ context.Context, _ domain.ProjectID, _ domain.ExecutionBinding, _ *domain.AttemptExecutionPolicy) (ports.AgentProfileReadiness, error) {
@@ -423,7 +491,7 @@ func (f *fakeSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (p
 			LastActivityAt: time.Now(),
 		},
 	}
-	return ports.AttemptSpawnResult{Session: domain.Session{SessionRecord: rec}}, nil
+	return ports.AttemptSpawnResult{Session: domain.Session{SessionRecord: rec}, CompletionBoundary: f.completionBoundary}, nil
 }
 
 // Terminate records the request; failures AND result shapes are injectable
@@ -546,6 +614,9 @@ func (f *fakeStore) CreateAttemptWithFence(context.Context, ports.AttemptAdmissi
 }
 func (f *fakeStore) FailAttemptBeforeLaunch(context.Context, ports.AttemptPrelaunchFailure) (domain.AttemptObservation, error) {
 	return domain.AttemptObservation{}, nil
+}
+func (f *fakeStore) TerminateRunningAttemptWithObservation(context.Context, ports.AttemptRunningTermination) (domain.AttemptObservation, bool, error) {
+	return domain.AttemptObservation{}, false, nil
 }
 func (f *fakeStore) GetAttempt(context.Context, domain.OutcomeID, domain.AttemptID) (domain.Attempt, bool, error) {
 	return domain.Attempt{}, false, nil

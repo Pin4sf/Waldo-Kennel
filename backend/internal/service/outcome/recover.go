@@ -21,6 +21,7 @@ import (
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // RecoverAttempt applies one owner-directed recovery verb:
@@ -321,21 +322,35 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 		if !facts.terminated() {
 			continue
 		}
-		rows, err := s.store.TransitionAttemptStatus(ctx, attempt.OutcomeID, attempt.ID,
-			domain.AttemptRunning, domain.AttemptReconciled, s.clock())
-		if err != nil {
-			failures = append(failures, fmt.Errorf("attempt %s: %w", attempt.ID, err))
-			continue
-		}
-		if rows == 0 {
-			continue // moved concurrently; next tick sees the truth
+		target := domain.AttemptReconciled
+		outcome := "provider session ended; result unclassified"
+		releaseReason := ""
+		if facts.completionBoundary == domain.AttemptCompletionProcessExit &&
+			!domain.SupervisedExitSucceeded(facts.exitCode, facts.exitReason) {
+			target = domain.AttemptFailed
+			outcome = "governed provider process exited unsuccessfully"
+			releaseReason = "governed_provider_process_failed"
 		}
 		payload := mustJSON(map[string]any{
-			"sessionId": facts.sessionID,
-			"outcome":   "provider session ended; result unclassified",
+			"sessionId":  facts.sessionID,
+			"outcome":    outcome,
+			"exitCode":   facts.exitCode,
+			"exitReason": facts.exitReason,
 		})
-		if _, err := s.store.AppendAttemptObservation(ctx, attempt.ID, domain.ObservationProviderExit, payload, s.clock()); err != nil {
-			failures = append(failures, fmt.Errorf("observation for %s: %w", attempt.ID, err))
+		// The transition, its observation, and (for a failure) the custody
+		// release commit atomically. A crash or write failure between them
+		// would otherwise leave a terminal Attempt holding its workspace fence
+		// forever: normal liveness scanning only revisits Running attempts, so
+		// nothing else would ever converge that cleanup.
+		// applied is false only when the Attempt moved off Running concurrently
+		// (a competing reconciler already committed); nothing else follows in
+		// this iteration either way, so the next tick simply sees the truth.
+		if _, _, err := s.store.TerminateRunningAttemptWithObservation(ctx, ports.AttemptRunningTermination{
+			OutcomeID: attempt.OutcomeID, AttemptID: attempt.ID, TargetStatus: target,
+			ObservationKind: domain.ObservationProviderExit, ObservationPayload: payload,
+			ReleaseReason: releaseReason, At: s.clock(),
+		}); err != nil {
+			failures = append(failures, fmt.Errorf("attempt %s: %w", attempt.ID, err))
 		}
 	}
 	switch len(failures) {
@@ -350,8 +365,11 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 
 // attemptFacts pairs derived heartbeat facts with the binding they came from.
 type attemptFacts struct {
-	sessionID string
-	facts     domain.SessionHeartbeatFacts
+	sessionID          string
+	facts              domain.SessionHeartbeatFacts
+	completionBoundary domain.AttemptCompletionBoundary
+	exitCode           *int
+	exitReason         string
 }
 
 // alive reports PROVABLE current liveness: present, signalled, not
@@ -387,6 +405,14 @@ func (s *Service) heartbeatFacts(ctx context.Context, attemptID domain.AttemptID
 	if !present {
 		return attemptFacts{sessionID: ref.SessionID}, nil
 	}
+	var completionBoundary domain.AttemptCompletionBoundary
+	if domain.LooksLikeGovernedAdmissionSnapshot(ref.AdmissionSnapshot) {
+		snapshot, err := domain.ParseAdmissionSnapshot(ref.AdmissionSnapshot)
+		if err != nil {
+			return attemptFacts{}, fmt.Errorf("parse governed admission snapshot: %w", err)
+		}
+		completionBoundary = snapshot.CompletionBoundary
+	}
 	return attemptFacts{
 		sessionID: ref.SessionID,
 		facts: domain.SessionHeartbeatFacts{
@@ -396,6 +422,9 @@ func (s *Service) heartbeatFacts(ctx context.Context, attemptID domain.AttemptID
 			LastActivityAt: rec.Activity.LastActivityAt,
 			IsTerminated:   rec.IsTerminated,
 		},
+		completionBoundary: completionBoundary,
+		exitCode:           rec.Metadata.SupervisedProcessExitCode,
+		exitReason:         rec.Metadata.SupervisedProcessExitReason,
 	}, nil
 }
 

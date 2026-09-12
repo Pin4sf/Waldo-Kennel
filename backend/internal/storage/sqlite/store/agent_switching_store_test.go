@@ -412,7 +412,8 @@ func TestAgentSwitchTargetStartUnconfirmedMarkerIsNonTerminalAndMonotonic(t *tes
 		SourceGenerationID: "source-generation", ExpectedSourceRuntimeLaunchID: "source-runtime",
 		TargetHarness: domain.HarnessCodex, TargetNativeSessionRef: target.ID,
 		TargetGenerationID: "target-generation", RuntimeHandleID: "target-handle",
-		ActivatedAt: now.Add(6 * time.Second),
+		SupervisorCapabilityVerifier: "target-supervisor-verifier",
+		ActivatedAt:                  now.Add(6 * time.Second),
 	}); err != nil || changed {
 		t.Fatalf("activate recovery-marked target: changed=%v err=%v", changed, err)
 	}
@@ -1005,6 +1006,14 @@ func TestAgentSwitchSourceStopAndTargetActivationAreAtomicAndNarrow(t *testing.T
 		t.Fatalf("late source activity mutated stopped projection: session=%+v ok=%v err=%v", stillExited, ok, err)
 	}
 
+	sourceExitCode := 19
+	stillExited.Metadata.SupervisorCapabilityVerifier = "source-supervisor-verifier"
+	stillExited.Metadata.SupervisedProcessExitCode = &sourceExitCode
+	stillExited.Metadata.SupervisedProcessExitReason = "failed"
+	if err := s.UpdateSession(ctx, stillExited); err != nil {
+		t.Fatalf("seed source exit facts: %v", err)
+	}
+
 	stored, ok, err = s.GetAgentSwitch(ctx, sw.ID)
 	if err != nil || !ok || stored.State != domain.AgentSwitchSourceStopped {
 		t.Fatalf("switch after source stop = %+v, ok=%v err=%v", stored, ok, err)
@@ -1041,6 +1050,7 @@ func TestAgentSwitchSourceStopAndTargetActivationAreAtomicAndNarrow(t *testing.T
 		SwitchID: sw.ID, SessionID: session.ID, SourceHarness: domain.HarnessClaudeCode,
 		SourceGenerationID:            "stale-source",
 		ExpectedSourceRuntimeLaunchID: "source-runtime-generation",
+		SupervisorCapabilityVerifier:  "target-supervisor-verifier",
 		TargetHarness:                 domain.HarnessCodex, TargetNativeSessionRef: target.ID,
 		TargetGenerationID: "target-generation", RuntimeHandleID: "target-handle",
 		ActivatedAt: now.Add(4 * time.Second),
@@ -1075,7 +1085,9 @@ func TestAgentSwitchSourceStopAndTargetActivationAreAtomicAndNarrow(t *testing.T
 	}
 	if activated.Harness != domain.HarnessCodex || activated.Activity.State != domain.ActivityIdle ||
 		activated.Metadata.RuntimeHandleID != "target-handle" || activated.Metadata.RuntimeLaunchID != "target-generation" ||
-		activated.Metadata.AgentSessionID != target.NativeSessionID || activated.Metadata.NativeTranscriptPath != target.TranscriptPath {
+		activated.Metadata.AgentSessionID != target.NativeSessionID || activated.Metadata.NativeTranscriptPath != target.TranscriptPath ||
+		activated.Metadata.SupervisorCapabilityVerifier != "target-supervisor-verifier" ||
+		activated.Metadata.SupervisedProcessExitCode != nil || activated.Metadata.SupervisedProcessExitReason != "" {
 		t.Fatalf("target owner projection = %+v", activated)
 	}
 	if !activated.FirstSignalAt.IsZero() {

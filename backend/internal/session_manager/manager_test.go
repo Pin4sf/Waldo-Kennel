@@ -1375,6 +1375,70 @@ func TestRestore_RotatesSupervisedAgentGeneration(t *testing.T) {
 	}
 }
 
+// fakeSupervisorCapabilityIssuer mints a deterministic, launch-scoped
+// token/verifier pair so a test can prove which generation's credential
+// actually reached durable metadata.
+type fakeSupervisorCapabilityIssuer struct{}
+
+func (fakeSupervisorCapabilityIssuer) Issue(_ domain.SessionID, launchID string) (string, string, error) {
+	return "token-" + launchID, "verifier-" + launchID, nil
+}
+
+// TestRestoreGovernedSessionPreservesSupervisorVerifierAcrossGeneration
+// covers fix #1: the restore path issues a fresh supervisor verifier for the
+// new runtime generation (superviseAgentProcess), but its MarkSpawned
+// metadata previously omitted that verifier. Generation replacement in the
+// real Lifecycle Manager correctly clears any field the new metadata omits
+// (see TestMarkSpawnedNewGenerationClearsOmittedSupervisorVerifier in the
+// lifecycle package), so the omission silently discarded the fresh
+// verifier and the wrapper's real exit report was later rejected as an
+// invalid capability. This exercises the actual Manager (session_manager)
+// -> Lifecycle -> Store seam for a governed restore: real admission
+// evidence, a real verifier issuer, and the real restore code path.
+func TestRestoreGovernedSessionPreservesSupervisorVerifierAcrossGeneration(t *testing.T) {
+	policy, digest := recoveryPolicy(t)
+	base := newFakeStore()
+	base.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: testRoleAgents()}
+	base.sessions["mer-1"] = domain.SessionRecord{
+		ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex,
+		IsTerminated: true,
+		Metadata: domain.SessionMetadata{
+			WorkspacePath: "/ws/mer-1", Branch: "kennel/mer-1", AgentSessionID: "agent-x",
+			RuntimeLaunchID:               "launch-old",
+			SupervisorCapabilityVerifier:  "verifier-launch-old",
+			GovernedExecutionPolicyDigest: digest,
+		},
+	}
+	store := &recoveryEvidenceFakeStore{fakeStore: base, ref: recoveryRef(t, "mer-1", domain.SessionModeTUI, policy, digest), found: true}
+	rt := &fakeRuntime{}
+	agent := supervisedLaunchAgent{launchArgvAgent{argv: []string{"codex", "resume", "agent-x"}}}
+	mgr := New(Deps{
+		Runtime: rt, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: store,
+		Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: base},
+		LookPath:               func(string) (string, error) { return "/bin/true", nil },
+		Executable:             func() (string, error) { return "/opt/kennel", nil },
+		NewLaunchID:            func() string { return "launch-new" },
+		SupervisorCapabilities: fakeSupervisorCapabilityIssuer{},
+	})
+
+	result, err := mgr.RestoreWithMode(context.Background(), "mer-1")
+	if err != nil {
+		t.Fatalf("RestoreWithMode: %v", err)
+	}
+	if result.Session.Metadata.RuntimeLaunchID != "launch-new" {
+		t.Fatalf("restored launch id = %q, want launch-new", result.Session.Metadata.RuntimeLaunchID)
+	}
+	if got, want := result.Session.Metadata.SupervisorCapabilityVerifier, "verifier-launch-new"; got != want {
+		t.Fatalf("restored supervisor verifier = %q, want %q (the fresh generation's verifier must survive MarkSpawned)", got, want)
+	}
+	if result.Session.Metadata.GovernedExecutionPolicyDigest != digest {
+		t.Fatalf("restored policy digest = %q, want %q (frozen governed binding must survive restore)", result.Session.Metadata.GovernedExecutionPolicyDigest, digest)
+	}
+	if got := rt.lastCfg.Env[EnvSupervisorCapability]; got != "token-launch-new" {
+		t.Fatalf("supervised process env capability = %q, want token-launch-new", got)
+	}
+}
+
 func newExitedResumeManager(t *testing.T, runtime runtimeController, agent ports.Agent) (*Manager, *fakeStore, *fakeWorkspace) {
 	t.Helper()
 	st := newFakeStore()
@@ -4971,6 +5035,23 @@ func TestSpawn_HookPATHPinUnavailable(t *testing.T) {
 				t.Fatalf("expected a 'not pinned' warning in the log, got %q", logBuf.String())
 			}
 		})
+	}
+}
+
+func TestSpawnAndRestore_PinHookPATHForPackagedDaemonSibling(t *testing.T) {
+	dir := t.TempDir()
+	daemonExe := filepath.Join(dir, "kennel-daemon")
+	if err := os.WriteFile(filepath.Join(dir, "kennel"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	want := dir + string(os.PathListSeparator) + "/usr/bin"
+	t.Setenv("PATH", "/usr/bin")
+	m, _, rt, _ := pathPinManager(func() (string, error) { return daemonExe, nil })
+	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker}); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.lastCfg.Env["PATH"]; got != want {
+		t.Fatalf("runtime env PATH = %q, want packaged hook sibling %q", got, want)
 	}
 }
 

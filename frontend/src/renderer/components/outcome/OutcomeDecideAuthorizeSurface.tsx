@@ -192,6 +192,7 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork, onRevie
 
 function PlanReviewCard({ outcomeId, plan }: { outcomeId: string; plan: PlanRecord }) {
 	const { t } = useTranslation();
+	const [view, setView] = useState<"plan" | "graph">("plan");
 	const scheduleQuery = useOutcomeSchedule(outcomeId, plan.status === "approved" ? plan.id : undefined);
 	// Criterion text comes from the canonical proof read, so nodes and rows show
 	// the owner's own words instead of criterion ids.
@@ -214,26 +215,43 @@ function PlanReviewCard({ outcomeId, plan }: { outcomeId: string; plan: PlanReco
 	const routingDecisions = plan.routingDecisions ?? [];
 	return (
 		<section className="mx-auto flex w-full max-w-2xl flex-col gap-2" data-testid="outcome-plan-card">
-			<div className="flex items-center justify-between gap-3 rounded-group hairline border-border bg-card px-4.5 py-3.5">
-				<h3 className="min-w-0 truncate text-sm font-medium text-foreground">{plan.summary || unit?.title}</h3>
-				<Badge variant={plan.status === "approved" ? "success" : "accent"}>
-					{plan.status === "approved"
-						? t("outcome.decide.badgeApproved", { number: plan.number })
-						: t("outcome.decide.badgeProposed", { number: plan.number })}
-				</Badge>
+			<div className="flex flex-wrap items-center justify-between gap-3 rounded-group hairline border-border bg-card px-4.5 py-3.5">
+				<div className="flex min-w-0 items-center gap-3">
+					<h3 className="min-w-0 truncate text-sm font-medium text-foreground">{plan.summary || unit?.title}</h3>
+					<Badge variant={plan.status === "approved" ? "success" : "accent"}>
+						{plan.status === "approved"
+							? t("outcome.decide.badgeApproved", { number: plan.number })
+							: t("outcome.decide.badgeProposed", { number: plan.number })}
+					</Badge>
+				</div>
+				<div aria-label={t("mission.plan")} className="flex shrink-0 gap-1" role="group">
+					{(["plan", "graph"] as const).map((mode) => (
+						<Button
+							aria-pressed={view === mode}
+							key={mode}
+							onClick={() => setView(mode)}
+							size="sm"
+							variant={view === mode ? "secondary" : "ghost"}
+						>
+							{t(`mission.${mode}`)}
+						</Button>
+					))}
+				</div>
 			</div>
-			{/* Proposed topology: no schedule exists before authorization, so the
-			    graph deliberately carries no execution state. */}
-			<div className="rounded-group hairline border-border bg-card px-4.5 py-3.5">
-				{plan.status !== "approved" || scheduleQuery.schedule ? (
-				<MissionPlanView
-					schedule={scheduleQuery.schedule}
-					criterionText={criterionText}
-					workUnits={plan.workUnits}
-				/>
-				) : <p className="text-xs text-muted-foreground">{scheduleQuery.failure?.message || t("mission.scheduleUnavailable")}</p>}
-			</div>
-
+			{view === "graph" ? (
+				/* Proposed topology has no schedule before authorization. The graph
+				   remains a distinct view and never inherits the text-plan sections. */
+				<div className="rounded-group hairline border-border bg-card px-4.5 py-3.5" data-testid="outcome-plan-graph">
+					{plan.status !== "approved" || scheduleQuery.schedule ? (
+						<MissionPlanView
+							criterionText={criterionText}
+							graphOnly
+							schedule={scheduleQuery.schedule}
+							workUnits={plan.workUnits}
+						/>
+					) : <p className="text-xs text-muted-foreground">{scheduleQuery.failure?.message || t("mission.scheduleUnavailable")}</p>}
+				</div>
+			) : <div className="contents" data-testid="outcome-plan-details">
 			<div className="grid gap-2" data-testid="outcome-plan-work-units">
 				{plan.workUnits.map((workUnit, index) => (
 					<div className="rounded-group hairline border-border bg-card px-3.5 py-3" key={workUnit.id}>
@@ -275,6 +293,7 @@ function PlanReviewCard({ outcomeId, plan }: { outcomeId: string; plan: PlanReco
 			<p className="px-1 text-2xs text-passive">
 				{t("outcome.decide.bindingNote", { contractRevision: plan.contractRevisionNumber })}
 			</p>
+			</div>}
 		</section>
 	);
 }

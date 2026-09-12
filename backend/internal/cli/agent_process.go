@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -10,6 +11,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/supervisorcap"
 )
 
 const supervisedExitReportTimeout = 5 * time.Second
@@ -60,10 +63,13 @@ func (c *commandContext) runSupervisedProcess(ctx context.Context, sessionID, la
 	child.Stdin = c.deps.In
 	child.Stdout = c.deps.Out
 	child.Stderr = c.deps.Err
+	// The bearer authenticates this wrapper to the daemon. The provider child
+	// must not inherit it or gain the ability to forge its own exit status.
+	child.Env = environmentWithout(os.Environ(), supervisorcap.EnvCapability)
 
 	if err := child.Start(); err != nil {
 		_, _ = fmt.Fprintf(c.deps.Err, "ao: start managed agent: %v\n", err)
-		c.reportSupervisedExit(sessionID, launchID)
+		c.reportSupervisedExit(sessionID, launchID, nil, "start_failed")
 		return
 	}
 
@@ -72,20 +78,56 @@ func (c *commandContext) runSupervisedProcess(ctx context.Context, sessionID, la
 	// alive long enough to reap the child and publish the exit observation.
 	interrupts := make(chan os.Signal, 1)
 	signal.Notify(interrupts, os.Interrupt)
-	_ = child.Wait()
+	waitErr := child.Wait()
 	signal.Stop(interrupts)
 
-	c.reportSupervisedExit(sessionID, launchID)
+	code, reason := supervisedExitFacts(ctx, child.ProcessState, waitErr)
+	c.reportSupervisedExit(sessionID, launchID, code, reason)
 }
 
-func (c *commandContext) reportSupervisedExit(sessionID, launchID string) {
+func supervisedExitFacts(ctx context.Context, state *os.ProcessState, waitErr error) (*int, string) {
+	if ctx.Err() != nil {
+		return nil, "cancelled"
+	}
+	if state != nil {
+		code := state.ExitCode()
+		if code >= 0 {
+			if code == 0 {
+				return &code, "exited"
+			}
+			return &code, "failed"
+		}
+	}
+	if waitErr != nil {
+		return nil, "failed"
+	}
+	return nil, "unknown"
+}
+
+func environmentWithout(env []string, name string) []string {
+	prefix := name + "="
+	filtered := make([]string, 0, len(env))
+	for _, entry := range env {
+		if !strings.HasPrefix(entry, prefix) {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
+}
+
+func (c *commandContext) reportSupervisedExit(sessionID, launchID string, exitCode *int, reason string) {
 	ctx, cancel := context.WithTimeout(context.Background(), supervisedExitReportTimeout)
 	defer cancel()
-	path := "sessions/" + sessionID + "/activity"
+	path := "/api/v1/sessions/" + sessionID + "/activity"
 	req := setActivityAPIRequest{State: "exited", Event: "process-exited", LaunchID: launchID}
-	if err := c.postJSON(ctx, path, req, nil); err != nil {
-		// Reconciliation will recover this event from process absence. Keep the
-		// delivery failure visible without preventing the terminal's shell.
+	headers := map[string]string(nil)
+	if token := strings.TrimSpace(os.Getenv(supervisorcap.EnvCapability)); token != "" {
+		req.ProcessExit = &supervisedProcessExitRequest{ExitCode: exitCode, Reason: reason}
+		headers = map[string]string{supervisorcap.HeaderCapability: token}
+	}
+	if err := c.doJSONPathWithHeaders(ctx, http.MethodPost, path, req, nil, headers); err != nil {
+		// Reconciliation can still report process absence. Keep the delivery
+		// failure visible without preventing the terminal's shell.
 		c.reportHookFailure("agent-process", "process-exited", sessionID, err)
 	}
 }

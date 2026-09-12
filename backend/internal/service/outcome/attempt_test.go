@@ -302,6 +302,115 @@ func TestStartAttemptAdmissionOrdering(t *testing.T) {
 	_ = store
 }
 
+func TestStartAttemptDeliversExactAssignedContractAndApprovedCheckMaterial(t *testing.T) {
+	svc, store, spawner, _, outcomeID, planID := newAttemptHarness(t)
+	ctx := context.Background()
+	view, err := svc.Get(ctx, outcomeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revision := view.Current
+	assignedText := "The report contains these literal headings:\n## Major components\n## Prioritized gaps"
+	unrelatedText := "UNRELATED CRITERION MUST NOT REACH THE FIRST WORKER"
+	revision.Criteria[0].Text = assignedText
+	revision.SuccessCriteria[0] = assignedText
+	revision.Criteria = append(revision.Criteria, domain.ContractCriterion{
+		ID: "crit-unrelated-delivery", ContractRevisionID: revision.ID, Position: 2, Text: unrelatedText,
+	})
+	revision.SuccessCriteria = append(revision.SuccessCriteria, unrelatedText)
+	revision.Review = "Review the exact report headings and the daemon-owned validator output."
+	if err := revision.Validate(); err != nil {
+		t.Fatalf("custom Contract revision: %v", err)
+	}
+	store.fakeStore.mu.Lock()
+	store.revs[outcomeID][0] = revision
+	store.fakeStore.mu.Unlock()
+
+	plan, found, err := store.GetPlanRevision(ctx, outcomeID, planID)
+	if err != nil || !found {
+		t.Fatalf("get approved plan: found=%v err=%v", found, err)
+	}
+	unit := plan.WorkUnits[0]
+	unit.OutputSummary = "Write the report described elsewhere."
+	unit.EvidenceChecks = []string{"Apply the normal report checks."}
+	unit.VerificationRequirement = "Kennel will inspect the approved check result."
+	unit.CriterionIDs = []domain.CriterionID{revision.Criteria[0].ID}
+	validator := "from pathlib import Path\np=Path('kennel-architecture-assessment.md')\ns=p.read_text()\nassert '## Major components' in s\nassert '## Prioritized gaps' in s"
+	unit.Checks = []domain.ApprovedCheck{{
+		ID: "check-report-headings", CriterionID: revision.Criteria[0].ID,
+		Argv: []string{"python3", "-c", validator}, TimeoutSeconds: 60,
+	}}
+	unrelated := unit
+	unrelated.ID = "wu-unrelated-delivery"
+	unrelated.Title = "Handle a separate responsibility"
+	unrelated.OutputSummary = "Produce an unrelated result."
+	unrelated.EvidenceChecks = []string{"Inspect the unrelated result."}
+	unrelated.VerificationRequirement = "Verify only the unrelated criterion."
+	unrelated.DependsOn = []domain.WorkUnitID{unit.ID}
+	unrelated.CriterionIDs = []domain.CriterionID{revision.Criteria[1].ID}
+	unrelated.Checks = nil
+	plan.WorkUnits = []domain.WorkUnit{unit, unrelated}
+	routing := plan.RoutingDecisions[0]
+	routing.WorkUnitID = unrelated.ID
+	plan.RoutingDecisions = append(plan.RoutingDecisions, routing)
+	plan.RunBriefCoreDigest, err = domain.ComputePlanRunBriefCoreDigest(revision, plan.WorkUnits, plan.Grants)
+	if err != nil {
+		t.Fatalf("recompute frozen RunBrief: %v", err)
+	}
+	if err := plan.ValidateForApproval(revision); err != nil {
+		t.Fatalf("custom approved plan: %v", err)
+	}
+	store.planFakeStore.mu.Lock()
+	for index := range store.plans[outcomeID] {
+		if store.plans[outcomeID][index].ID == planID {
+			store.plans[outcomeID][index] = plan
+		}
+	}
+	store.units[planID] = append([]domain.WorkUnit(nil), plan.WorkUnits...)
+	store.planFakeStore.mu.Unlock()
+	firstWorkUnitOfPlan[planID] = unit.ID
+
+	started, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{
+		PlanRevisionID: planID, WorkUnitID: unit.ID, RequestKey: "req-exact-task-delivery",
+	})
+	if err != nil {
+		t.Fatalf("StartAttempt: %v", err)
+	}
+	if spawner.spawnCalls() != 1 {
+		t.Fatalf("spawn calls = %d, want one", spawner.spawnCalls())
+	}
+	req := spawner.spawned[0]
+	for name, literal := range map[string]string{
+		"assigned Contract criterion": assignedText,
+		"approved validator":          validator,
+		"Contract review method":      revision.Review,
+		"Contract revision identity":  revision.ID.String(),
+		"WorkUnit identity":           unit.ID.String(),
+	} {
+		if !strings.Contains(req.Prompt, literal) {
+			t.Fatalf("spawn prompt lost %s %q:\n%s", name, literal, req.Prompt)
+		}
+	}
+	if strings.Contains(req.Prompt, unrelatedText) {
+		t.Fatalf("spawn prompt widened criterion scope:\n%s", req.Prompt)
+	}
+	if !strings.Contains(req.Prompt, "Kennel, not this worker, decides when to execute these checks") {
+		t.Fatalf("spawn prompt did not distinguish verification ownership from worker authority:\n%s", req.Prompt)
+	}
+	if req.ExecutionPolicy == nil || req.ExecutionPolicy.ContractRevisionNumber != revision.Number || req.ExecutionPolicy.PlanRevisionID != planID || req.ExecutionPolicy.WorkUnitID != unit.ID || req.ExecutionPolicy.RunBriefCoreDigest != plan.RunBriefCoreDigest {
+		t.Fatalf("spawn policy lost frozen attribution: %+v", req.ExecutionPolicy)
+	}
+	if len(started.Sessions) != 1 || started.Sessions[0].RunBriefCoreDigest != plan.RunBriefCoreDigest {
+		t.Fatalf("durable session binding lost frozen RunBrief: %+v", started.Sessions)
+	}
+	replayed, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{
+		PlanRevisionID: planID, WorkUnitID: unit.ID, RequestKey: "req-exact-task-delivery",
+	})
+	if err != nil || replayed.Attempt.ID != started.Attempt.ID || spawner.spawnCalls() != 1 {
+		t.Fatalf("retry did not preserve attributed Attempt: replay=%+v err=%v spawns=%d", replayed.Attempt, err, spawner.spawnCalls())
+	}
+}
+
 // TestStartAttemptReplayIsIdempotent proves a delivered request key resolves
 // to the original attempt without a second admission.
 func TestStartAttemptReplayIsIdempotent(t *testing.T) {
@@ -1173,4 +1282,191 @@ func TestLeaseRenewalGatesOnProvableLiveness(t *testing.T) {
 	if store.renewals < 2 {
 		t.Fatalf("renewal count = %d, want >=2 (alive + sticky passes)", store.renewals)
 	}
+}
+
+func TestLivenessLoopClassifiesNonzeroGovernedProcessExitAsFailed(t *testing.T) {
+	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	spawner.completionBoundary = domain.AttemptCompletionProcessExit
+	view, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := domain.SessionID(view.Sessions[0].SessionID)
+	exitCode := 23
+	rec := heartbeats.sessions[sessionID]
+	rec.IsTerminated = true
+	rec.Metadata.SupervisedProcessExitCode = &exitCode
+	rec.Metadata.SupervisedProcessExitReason = "failed"
+	heartbeats.sessions[sessionID] = rec
+
+	if err := svc.EvaluateAttemptLiveness(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	reread, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reread.Attempt.Status != domain.AttemptFailed {
+		t.Fatalf("status = %s, want failed", reread.Attempt.Status)
+	}
+}
+
+// TestLivenessLoopClassifiesContradictoryZeroExitAsFailed covers the
+// "zero-plus-failure" case: an exit code of 0 paired with a non-"exited"
+// reason is a contradiction, not a success, even though a check on exit code
+// alone would have read it as zero and let it through to reconciled/eligible
+// for succeeded promotion.
+func TestLivenessLoopClassifiesContradictoryZeroExitAsFailed(t *testing.T) {
+	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	spawner.completionBoundary = domain.AttemptCompletionProcessExit
+	view, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := domain.SessionID(view.Sessions[0].SessionID)
+	exitCode := 0
+	rec := heartbeats.sessions[sessionID]
+	rec.IsTerminated = true
+	rec.Metadata.SupervisedProcessExitCode = &exitCode
+	rec.Metadata.SupervisedProcessExitReason = "failed"
+	heartbeats.sessions[sessionID] = rec
+
+	if err := svc.EvaluateAttemptLiveness(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	reread, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reread.Attempt.Status != domain.AttemptFailed {
+		t.Fatalf("status = %s, want failed", reread.Attempt.Status)
+	}
+}
+
+// TestLivenessLoopReconcilesLegitimateZeroExit is the positive counterpart:
+// a genuine zero exit code paired with reason "exited" must NOT be
+// classified as failed.
+func TestLivenessLoopReconcilesLegitimateZeroExit(t *testing.T) {
+	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	spawner.completionBoundary = domain.AttemptCompletionProcessExit
+	view, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := domain.SessionID(view.Sessions[0].SessionID)
+	exitCode := 0
+	rec := heartbeats.sessions[sessionID]
+	rec.IsTerminated = true
+	rec.Metadata.SupervisedProcessExitCode = &exitCode
+	rec.Metadata.SupervisedProcessExitReason = domain.SupervisedExitReasonExited
+	heartbeats.sessions[sessionID] = rec
+
+	if err := svc.EvaluateAttemptLiveness(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	reread, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reread.Attempt.Status != domain.AttemptReconciled {
+		t.Fatalf("status = %s, want reconciled", reread.Attempt.Status)
+	}
+}
+
+// TestLivenessLoopClassifiesMissingExitCodeAsFailed covers a durably
+// terminated session whose reason claims "exited" but carries no exit code
+// at all — never successful reconciliation from a nil code.
+func TestLivenessLoopClassifiesMissingExitCodeAsFailed(t *testing.T) {
+	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	spawner.completionBoundary = domain.AttemptCompletionProcessExit
+	view, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := domain.SessionID(view.Sessions[0].SessionID)
+	rec := heartbeats.sessions[sessionID]
+	rec.IsTerminated = true
+	rec.Metadata.SupervisedProcessExitCode = nil
+	rec.Metadata.SupervisedProcessExitReason = "unknown"
+	heartbeats.sessions[sessionID] = rec
+
+	if err := svc.EvaluateAttemptLiveness(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	reread, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reread.Attempt.Status != domain.AttemptFailed {
+		t.Fatalf("status = %s, want failed", reread.Attempt.Status)
+	}
+}
+
+// livenessLoopFailureConvergenceCase drives fix #3: a governed provider
+// exit's Running->Failed transition, observation, and custody release must
+// commit atomically. Injecting a failure at either step must roll back the
+// whole operation (Attempt still Running, fence still held, no observation
+// recorded) rather than stranding a partial commit; a retried tick must then
+// converge to exactly one terminal outcome with custody released and no
+// duplicate observation or Attempt.
+func livenessLoopFailureConvergenceCase(t *testing.T, injectAt string) {
+	t.Helper()
+	svc, store, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	spawner.completionBoundary = domain.AttemptCompletionProcessExit
+	view, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := domain.SessionID(view.Sessions[0].SessionID)
+	exitCode := 17
+	rec := heartbeats.sessions[sessionID]
+	rec.IsTerminated = true
+	rec.Metadata.SupervisedProcessExitCode = &exitCode
+	rec.Metadata.SupervisedProcessExitReason = "failed"
+	heartbeats.sessions[sessionID] = rec
+
+	store.injectRunningTerminationFailureAt = injectAt
+	if err := svc.EvaluateAttemptLiveness(context.Background()); err == nil {
+		t.Fatalf("expected injected %s failure to surface", injectAt)
+	}
+	mid, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mid.Attempt.Status != domain.AttemptRunning {
+		t.Fatalf("status after injected %s failure = %s, want still running (no partial commit)", injectAt, mid.Attempt.Status)
+	}
+	if mid.Fence == nil {
+		t.Fatalf("custody released despite injected %s failure before any commit", injectAt)
+	}
+	if len(mid.Observations) != 0 {
+		t.Fatalf("observation recorded despite injected %s failure: %d", injectAt, len(mid.Observations))
+	}
+
+	// Restart/reconcile: the Attempt is still Running, so the next liveness
+	// pass revisits it and retries the whole operation from scratch.
+	if err := svc.EvaluateAttemptLiveness(context.Background()); err != nil {
+		t.Fatalf("retry after injected %s failure: %v", injectAt, err)
+	}
+	final, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if final.Attempt.Status != domain.AttemptFailed {
+		t.Fatalf("status after convergence = %s, want failed", final.Attempt.Status)
+	}
+	if final.Fence != nil {
+		t.Fatal("custody must be released once the failure converges")
+	}
+	if len(final.Observations) != 1 {
+		t.Fatalf("observation count after convergence = %d, want exactly one (no duplicate)", len(final.Observations))
+	}
+}
+
+func TestLivenessLoopConvergesAfterInjectedObservationWriteFailure(t *testing.T) {
+	livenessLoopFailureConvergenceCase(t, "observation")
+}
+
+func TestLivenessLoopConvergesAfterInjectedCustodyReleaseFailure(t *testing.T) {
+	livenessLoopFailureConvergenceCase(t, "release")
 }

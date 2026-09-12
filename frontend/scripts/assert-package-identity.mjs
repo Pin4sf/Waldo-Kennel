@@ -44,6 +44,10 @@ if (path.basename(appPath) !== expected.appName) {
 
 const executablePath = path.join(appPath, "Contents", "MacOS", expected.executable);
 if (!existsSync(executablePath)) throw new Error(`missing packaged executable ${executablePath}`);
+const hookExecutablePath = path.join(appPath, "Contents", "Resources", "daemon", "kennel");
+if (!existsSync(hookExecutablePath)) {
+	throw new Error(`missing packaged hook CLI ${hookExecutablePath}`);
+}
 if (existsSync(path.join(appPath, "Contents", "MacOS", "agent-orchestrator"))) {
 	throw new Error("package still contains the inherited agent-orchestrator executable");
 }

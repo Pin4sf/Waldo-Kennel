@@ -172,12 +172,27 @@ func (s *Service) StartPlanning(ctx context.Context, outcomeID domain.OutcomeID,
 		}); ok {
 			briefSource = candidate
 		}
-		snapshot, err = intelligencesvc.BuildRepositoryContext(ctx, project, briefSource)
+		limits, limitErr := s.repositoryContextLimits(ctx)
+		if limitErr != nil {
+			return PlanningView{}, limitErr
+		}
+		snapshot, err = intelligencesvc.BuildRepositoryContext(ctx, project, briefSource, limits)
 		if err != nil {
 			return PlanningView{}, err
 		}
-		if snapshot.UnavailableReason != "" {
-			return PlanningView{}, apierr.Unavailable("PLANNING_REPOSITORY_UNAVAILABLE", snapshot.UnavailableReason, nil)
+		// A partial snapshot (e.g. one that hit a bounded discovery limit) is
+		// not the same as an unusable one: BuildRepositoryContext deliberately
+		// keeps whatever files/instructions it found before stopping, and
+		// appendRepositoryContext already discloses UnavailableReason in the
+		// prompt as an honest "context limitation" line. Only refuse planning
+		// outright when there is truly nothing to reason from — an
+		// uninspectable revision, or zero files and zero instructions.
+		if snapshot.Revision == "" || (len(snapshot.Files) == 0 && len(snapshot.Instructions) == 0) {
+			detail := snapshot.UnavailableReason
+			if detail == "" {
+				detail = "repository context is unavailable for planning"
+			}
+			return PlanningView{}, apierr.Unavailable("PLANNING_REPOSITORY_UNAVAILABLE", detail, nil)
 		}
 	}
 	contextJSON, err := json.Marshal(snapshot)

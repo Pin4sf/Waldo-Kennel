@@ -227,8 +227,8 @@ function ProjectOutcomesGroup({
 												<OutcomeOverviewRow
 													attention={attention.get(node.outcome.id)}
 													selected={selectedOutcomeId === node.outcome.id}
-													onOpen={() => onOpenOutcome(workspace.id, node.outcome, outcomeDestinationStage(node))}
-													onOpenMissionControl={() => onOpenOutcome(workspace.id, node.outcome, outcomeDestinationStage(node))}
+												onOpen={() => onOpenOutcome(workspace.id, node.outcome, outcomeDestinationStage(node, attention.get(node.outcome.id)?.lane))}
+												onOpenMissionControl={() => onOpenOutcome(workspace.id, node.outcome, outcomeDestinationStage(node, attention.get(node.outcome.id)?.lane))}
 													outcome={node.outcome}
 												/>
 												{includeContributors &&

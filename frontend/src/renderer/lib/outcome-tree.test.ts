@@ -50,4 +50,11 @@ describe("outcomeDestinationStage", () => {
 		const tree = buildOutcomeTree([root("p"), child("c", "p")]);
 		expect(outcomeDestinationStage({ outcome: tree[0].contributors[0], contributors: [] })).toBe("decide_authorize");
 	});
+
+	it("opens a direct Outcome at the stage that explains its recorded attention", () => {
+		const [only] = buildOutcomeTree([root("p")]);
+		expect(outcomeDestinationStage(only, "needsYou")).toBe("act_observe");
+		expect(outcomeDestinationStage(only, "observe")).toBe("act_observe");
+		expect(outcomeDestinationStage(only, "review")).toBe("prove_close");
+	});
 });

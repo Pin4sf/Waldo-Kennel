@@ -531,11 +531,12 @@ func (s *Store) ActivateAgentSwitchTarget(ctx context.Context, activation domain
 
 	n, err := q.ActivateSessionAgentSwitchTarget(ctx, gen.ActivateSessionAgentSwitchTargetParams{
 		TargetHarness: activation.TargetHarness, ActivatedAt: activation.ActivatedAt,
-		RuntimeHandleID:            activation.RuntimeHandleID,
-		TargetGenerationID:         string(activation.TargetGenerationID),
-		TargetNativeSessionID:      targetNative.NativeSessionID,
-		TargetNativeTranscriptPath: targetNative.TranscriptPath,
-		SessionID:                  activation.SessionID, ExpectedSourceHarness: activation.SourceHarness,
+		RuntimeHandleID:              activation.RuntimeHandleID,
+		SupervisorCapabilityVerifier: activation.SupervisorCapabilityVerifier,
+		TargetGenerationID:           string(activation.TargetGenerationID),
+		TargetNativeSessionID:        targetNative.NativeSessionID,
+		TargetNativeTranscriptPath:   targetNative.TranscriptPath,
+		SessionID:                    activation.SessionID, ExpectedSourceHarness: activation.SourceHarness,
 		ExpectedSourceRuntimeLaunchID: activation.ExpectedSourceRuntimeLaunchID,
 	})
 	if err != nil {

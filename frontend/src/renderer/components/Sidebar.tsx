@@ -42,7 +42,7 @@ import { aoBridge } from "../lib/bridge";
 import { useCommandPaletteEnabled } from "../hooks/useCommandPaletteEnabled";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { useProjectOutcomes, type OutcomeRecord } from "../hooks/useOutcome";
-import { buildOutcomeTree, outcomeDestinationStage } from "../lib/outcome-tree";
+import { buildOutcomeTree, outcomeDestinationStage, type OutcomeDestinationStage } from "../lib/outcome-tree";
 import { usePinSession, useUnpinSession } from "../hooks/usePinSession";
 import { spawnOrchestrator } from "../lib/spawn-orchestrator";
 import { renameSession } from "../lib/rename-session";
@@ -731,7 +731,7 @@ function ProjectItem({
 	// the sidebar derives the nesting itself from parentId.
 	const outcomeTree = buildOutcomeTree(outcomes);
 
-	const openOutcome = (outcomeId: string, stage: "decompose" | "decide_authorize") => {
+	const openOutcome = (outcomeId: string, stage: OutcomeDestinationStage) => {
 		void navigate({ to: "/work", search: { project: workspace.id, stage, outcome: outcomeId, portfolio: workspace.id } });
 	};
 	const openNewOutcome = () => {

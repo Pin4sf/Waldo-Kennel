@@ -2,7 +2,9 @@ import { useUiStore } from "../../stores/ui-store";
 vi.mock("../../hooks/useMissionAttention", () => ({
 	useMissionAttention: (outcomes: Array<{ id: string }>) =>
 		new Map(
-			outcomes.map((outcome) => [outcome.id, { lane: outcome.id.startsWith("accepted") ? "accepted" : outcome.id.startsWith("review") ? "review" : "define" }]),
+			outcomes.map((outcome) => [outcome.id, outcome.id.startsWith("needs")
+				? { lane: "needsYou", reason: "The provider needs a decision about the requested permission." }
+				: { lane: outcome.id.startsWith("accepted") ? "accepted" : outcome.id.startsWith("review") ? "review" : "define" }]),
 		),
 }));
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -97,6 +99,25 @@ describe("OutcomesOverviewSurface", () => {
 		expect(onOpenOutcome.mock.calls[0][0]).toBe("proj-1");
 		expect(onOpenOutcome.mock.calls[0][1]).toMatchObject({ id: "out-1", title: "Ship the release" });
 		expect(onOpenOutcome.mock.calls[0][2]).toBe("decide_authorize");
+	});
+
+	it("states why an Outcome needs the owner and opens the execution detail that can resolve it", async () => {
+		workspaceQueryMock.mockReturnValue({ data: [workspace("proj-1", "Waldo Kennel")], isLoading: false });
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [outcome("needs-owner", "Resolve the provider question")],
+			isLoading: false,
+			refetch: vi.fn(),
+		});
+		const user = userEvent.setup();
+		const onOpenOutcome = renderSurface();
+
+		expect(await screen.findByText("The provider needs a decision about the requested permission.")).toBeVisible();
+		await user.click(screen.getByText("Resolve the provider question"));
+		expect(onOpenOutcome).toHaveBeenCalledWith(
+			"proj-1",
+			expect.objectContaining({ id: "needs-owner" }),
+			"act_observe",
+		);
 	});
 
 	it("opens a decomposed parent and shows contributors only on request", async () => {

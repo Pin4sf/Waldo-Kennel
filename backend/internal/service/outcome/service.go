@@ -18,6 +18,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	intelligencesvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence"
 )
 
 // Manager is the controller-facing boundary for canonical Outcome work.
@@ -108,8 +109,11 @@ type Service struct {
 	planningSessions ports.PlanningSessionStore
 	intelligenceRuns ports.IntelligenceRunStore
 	routing          ports.ExecutionRoutingInventory
-	planningTurnMu   sync.Mutex
-	planningTurns    map[domain.PlanningSessionID]*planningTurnCancellation
+	// contextLimits resolves the owner-configurable bounds for
+	// BuildRepositoryContext. Optional: nil means DefaultRepositoryContextLimits.
+	contextLimits  intelligencesvc.RepositoryContextLimitsSource
+	planningTurnMu sync.Mutex
+	planningTurns  map[domain.PlanningSessionID]*planningTurnCancellation
 
 	PolicyLayers [][]string
 
@@ -227,6 +231,29 @@ func (s *Service) WithExecution(spawner ports.AttemptSessionSpawner, heartbeats 
 	s.heartbeats = heartbeats
 	s.staleHeartbeat = domain.DefaultStaleHeartbeatWindow
 	return s
+}
+
+// WithRepositoryContextLimits wires the owner-configurable bounds for
+// BuildRepositoryContext. Optional: without it, planning and Plan drafting
+// use intelligencesvc.DefaultRepositoryContextLimits.
+func (s *Service) WithRepositoryContextLimits(source intelligencesvc.RepositoryContextLimitsSource) *Service {
+	s.contextLimits = source
+	return s
+}
+
+// repositoryContextLimits resolves the effective bounds for one context build.
+// An absent optional source uses package defaults; a wired source that fails is
+// surfaced so no provider receives context under limits the owner did not ask
+// for and no settings failure is disguised as a default.
+func (s *Service) repositoryContextLimits(ctx context.Context) (intelligencesvc.RepositoryContextLimits, error) {
+	if s.contextLimits == nil {
+		return intelligencesvc.DefaultRepositoryContextLimits, nil
+	}
+	maxFiles, maxBytes, maxVisited, err := s.contextLimits.RepositoryContextLimits(ctx)
+	if err != nil {
+		return intelligencesvc.RepositoryContextLimits{}, fmt.Errorf("resolve repository-context limits for Outcome planning: %w", err)
+	}
+	return intelligencesvc.RepositoryContextLimits{MaxFiles: maxFiles, MaxBytes: maxBytes, MaxVisited: maxVisited}, nil
 }
 
 // WithAttemptRetainer attaches the restart-safe workspace capture used before

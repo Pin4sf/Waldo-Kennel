@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -14,6 +14,7 @@ const outPath = join(outDir, process.platform === "win32" ? "kennel-daemon.exe" 
 const isWindowsDev = process.platform === "win32" && process.argv.includes("--dev");
 const windowsDevOutDir = join(outDir, `dev-${Date.now()}-${process.pid}`);
 const buildOutPath = isWindowsDev ? join(windowsDevOutDir, "kennel-daemon.exe") : outPath;
+const hookBinaryPath = join(dirname(buildOutPath), process.platform === "win32" ? "kennel.exe" : "kennel");
 const windowsDevManifestPath = join(outDir, "dev-daemon.json");
 const buildIdentityManifestPath = join(outDir, "build-identity.json");
 const minimumGoVersion = parseMinimumGoVersion(readFileSync(join(backendRoot, "go.mod"), "utf8"));
@@ -80,6 +81,13 @@ if (result.error) {
 if (result.status !== 0) {
 	process.exit(result.status ?? 1);
 }
+
+// Workspace hooks intentionally invoke the stable `kennel` CLI name. The
+// desktop launches the same all-in-one Go binary as `kennel-daemon`, but a
+// packaged app must also carry a sibling with the CLI name so spawned sessions
+// cannot fall through to an older globally-installed Kennel on PATH.
+copyFileSync(buildOutPath, hookBinaryPath);
+if (process.platform !== "win32") chmodSync(hookBinaryPath, 0o755);
 
 writeFileSync(
 	buildIdentityManifestPath,

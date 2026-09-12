@@ -143,6 +143,24 @@ func TestProposePlanReentryIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestProposePlanSettingsReadFailurePreventsIntelligenceRun(t *testing.T) {
+	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}
+	svc, store, outcomeID, provider := newPlanningTestService(t, router)
+	want := errors.New("settings read failed")
+	svc.WithRepositoryContextLimits(fixedRepositoryContextLimits{err: want})
+
+	_, err := svc.ProposePlan(context.Background(), outcomeID, 2)
+	if !errors.Is(err, want) {
+		t.Fatalf("ProposePlan() error = %v, want surfaced settings failure", err)
+	}
+	if provider.calls != 0 {
+		t.Fatalf("plan intelligence calls = %d, want zero", provider.calls)
+	}
+	if got := len(store.plans[outcomeID]); got != 0 {
+		t.Fatalf("settings failure persisted %d plan proposals, want zero", got)
+	}
+}
+
 func TestReplanPlanWithFeedbackCreatesNewImmutableProposal(t *testing.T) {
 	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}
 	svc, store, outcomeID, provider := newPlanningTestService(t, router)

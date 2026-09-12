@@ -77,6 +77,40 @@ type SessionMetadata struct {
 	// policy. A non-empty marker with missing or invalid evidence must block
 	// recovery rather than inherit mutable Project preferences.
 	GovernedExecutionPolicyDigest string `json:"governedExecutionPolicyDigest,omitempty"`
+	// SupervisorCapabilityVerifier authenticates completion reports from the
+	// exact supervised worker generation. The bearer capability is never
+	// persisted or exposed to the provider process.
+	SupervisorCapabilityVerifier string `json:"-"`
+	// SupervisedProcessExitCode and SupervisedProcessExitReason are trusted
+	// supervisor observations for the current RuntimeLaunchID. Nil means no
+	// authenticated exit report was recorded; zero is a successful process exit,
+	// not Outcome success or owner Acceptance.
+	SupervisedProcessExitCode   *int   `json:"-"`
+	SupervisedProcessExitReason string `json:"-"`
+}
+
+// SupervisedExitReasonExited is the only reason value a successful supervised
+// process exit may report.
+const SupervisedExitReasonExited = "exited"
+
+// SupervisedExitFactsConsistent reports whether an (exitCode, reason) pair is
+// internally consistent: a zero exit code and the "exited" reason must agree
+// in both directions. This rejects "zero exit code plus a failure reason" and
+// "exited reason plus a missing or nonzero exit code" as the same kind of
+// contradiction, without needing to enumerate every non-exited reason string.
+func SupervisedExitFactsConsistent(exitCode *int, reason string) bool {
+	zero := exitCode != nil && *exitCode == 0
+	exited := reason == SupervisedExitReasonExited
+	return zero == exited
+}
+
+// SupervisedExitSucceeded is the single definition of a successful supervised
+// process exit: exit code zero AND reason "exited", nothing else. Callers
+// must use this instead of re-deriving success from either fact alone, so a
+// contradictory or partial report (nil/nonzero code, a non-exited reason, or
+// a mismatched combination) never reads as success.
+func SupervisedExitSucceeded(exitCode *int, reason string) bool {
+	return exitCode != nil && *exitCode == 0 && reason == SupervisedExitReasonExited
 }
 
 // SessionRecord is the persistence shape. It intentionally stores only durable

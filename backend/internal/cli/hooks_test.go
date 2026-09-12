@@ -14,9 +14,10 @@ import (
 )
 
 type activityCapture struct {
-	body string
-	path string
-	hits int
+	body                 string
+	path                 string
+	hits                 int
+	supervisorCapability string
 }
 
 // activityServer accepts POST /api/v1/sessions/{id}/activity and records what
@@ -36,6 +37,7 @@ func activityServer(t *testing.T, status int, respBody string) (*httptest.Server
 		capture.body = string(body)
 		capture.path = r.URL.Path
 		capture.hits++
+		capture.supervisorCapability = r.Header.Get("X-Kennel-Supervisor-Capability")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
 		_, _ = io.WriteString(w, respBody)

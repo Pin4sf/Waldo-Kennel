@@ -209,9 +209,32 @@ func (s *Service) invokeReservedChecks(
 		if err := s.checkRuns.RecordAttemptCheckObservation(ctx, run); err != nil {
 			return nil, err
 		}
-		runs = append(runs, run)
+		// Build proof from the just-persisted row, not the checker's transient
+		// struct. The store intentionally uses the durable reservation time as
+		// StartedAt; a later reconciliation reconstructs that same value. Using
+		// the checker's process-start timestamp on the first pass made duration
+		// text (and therefore the proof fingerprint) differ after restart.
+		stored, err := s.reloadRecordedCheckRun(ctx, attempt.ID, receipt.ArtifactVersion, observation.Check)
+		if err != nil {
+			return nil, err
+		}
+		runs = append(runs, stored)
 	}
 	return runs, nil
+}
+
+func (s *Service) reloadRecordedCheckRun(ctx context.Context, attemptID domain.AttemptID, artifactVersion string, check domain.ApprovedCheck) (ports.AttemptCheckRun, error) {
+	stored, found, err := s.checkRuns.GetAttemptCheckRun(ctx, attemptID, check.ID, artifactVersion)
+	if err != nil {
+		return ports.AttemptCheckRun{}, err
+	}
+	if !found {
+		return ports.AttemptCheckRun{}, fmt.Errorf("reload recorded check observation %s/%s: durable row missing", attemptID, check.ID)
+	}
+	// Approved argv and criterion identity live in the frozen Plan rather than
+	// the check-run row; restore them without replacing any durable observation.
+	stored.Observation.Check = check
+	return stored, nil
 }
 
 func checkReservationKey(attemptID domain.AttemptID, checkID domain.ApprovedCheckID, artifactVersion string) string {

@@ -67,6 +67,9 @@ type LaunchConfig struct {
 	// prompt arguments. Desktop Kennel uses these for its Codex activity hooks;
 	// workers normally leave them empty.
 	ProviderArgs []string
+	// OneShot selects the provider command that exits after the supplied turn.
+	// It is used only for approved governed WorkUnits; ordinary sessions remain interactive.
+	OneShot bool
 }
 
 // RestoreConfig contains the inputs needed to resume a native conversation.
@@ -83,6 +86,7 @@ type RestoreConfig struct {
 	Permission       PermissionPolicy
 	AllowedTools     []string
 	DisallowedTools  []string
+	OneShot          bool
 	ProviderArgs     []string
 }
 
@@ -290,6 +294,9 @@ func appendClaudeSystemPrompt(cmd []string, promptFile, prompt string) ([]string
 func buildCodexLaunch(cfg LaunchConfig) []string {
 	cmd := codexBaseCommand(cfg.Binary, cfg.Permission, cfg.ProviderArgs)
 	cmd = appendCodexCommon(cmd, cfg.WorkspacePath, cfg.Model, cfg.SystemPromptFile, cfg.SystemPrompt)
+	if cfg.OneShot {
+		cmd = append(cmd, "exec")
+	}
 	if cfg.Prompt != "" {
 		cmd = append(cmd, "--", cfg.Prompt)
 	}
@@ -297,6 +304,15 @@ func buildCodexLaunch(cfg LaunchConfig) []string {
 }
 
 func buildCodexRestore(cfg RestoreConfig, identity string) []string {
+	if cfg.OneShot {
+		cmd := codexBaseCommand(cfg.Binary, cfg.Permission, cfg.ProviderArgs)
+		cmd = appendCodexCommon(cmd, cfg.WorkspacePath, cfg.Model, cfg.SystemPromptFile, cfg.SystemPrompt)
+		cmd = append(cmd, "exec", "resume", identity)
+		if cfg.Prompt != "" {
+			cmd = append(cmd, "--", cfg.Prompt)
+		}
+		return cmd
+	}
 	cmd := append([]string{cfg.Binary, "resume"}, codexBaseArgs(cfg.Permission, cfg.ProviderArgs)...)
 	cmd = appendCodexCommon(cmd, cfg.WorkspacePath, cfg.Model, cfg.SystemPromptFile, cfg.SystemPrompt)
 	cmd = append(cmd, identity)
