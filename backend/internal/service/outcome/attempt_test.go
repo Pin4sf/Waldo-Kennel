@@ -1408,6 +1408,11 @@ func TestLivenessLoopBlocksCompletionAfterUnknownGovernedCheckTerminationUntilOw
 		TimedOut: true, EnforcedBy: "test-fence", ObservedAt: time.Now().UTC(),
 	}})
 
+	// Exercise recovery before any periodic liveness import: the durable MCP
+	// marker itself must close the race and require explicit containment.
+	if _, err := svc.RecoverAttempt(context.Background(), outcomeID, view.Attempt.ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReplace}); err == nil {
+		t.Fatal("provider exit alone must not release custody for an unknown check process tree")
+	}
 	for i := 0; i < 2; i++ {
 		if err := svc.EvaluateAttemptLiveness(context.Background()); err != nil {
 			t.Fatal(err)
@@ -1431,9 +1436,6 @@ func TestLivenessLoopBlocksCompletionAfterUnknownGovernedCheckTerminationUntilOw
 	}
 	if unknownObservations != 1 {
 		t.Fatalf("unknown termination observations = %d, want exactly one", unknownObservations)
-	}
-	if _, err := svc.RecoverAttempt(context.Background(), outcomeID, view.Attempt.ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReplace}); err == nil {
-		t.Fatal("provider exit alone must not release custody for an unknown check process tree")
 	}
 	recovered, err := svc.RecoverAttempt(context.Background(), outcomeID, view.Attempt.ID, outcome.RecoveryInput{
 		Action: outcome.RecoveryActionReplace, ConfirmProviderStopped: true,

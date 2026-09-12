@@ -154,7 +154,7 @@ func (s *Service) reconcileAttempt(ctx context.Context, in RecoveryInput, attemp
 		}
 		return RecoveryView{Attempt: view, Receipt: receipt}, nil
 	}
-	unknownCheck, err := s.hasGovernedCheckTerminationUnknown(ctx, attempt.ID)
+	unknownCheck, err := s.resolveGovernedCheckTerminationUnknown(ctx, attempt.ID, domain.SessionID(facts.sessionID))
 	if err != nil {
 		return RecoveryView{}, err
 	}
@@ -244,7 +244,7 @@ func (s *Service) recoveryReplace(ctx context.Context, in RecoveryInput, attempt
 	if fErr != nil {
 		return RecoveryView{}, fErr
 	}
-	unknownCheck, err := s.hasGovernedCheckTerminationUnknown(ctx, attempt.ID)
+	unknownCheck, err := s.resolveGovernedCheckTerminationUnknown(ctx, attempt.ID, domain.SessionID(facts.sessionID))
 	if err != nil {
 		return RecoveryView{}, err
 	}
@@ -436,6 +436,16 @@ func (s *Service) hasGovernedCheckTerminationUnknown(ctx context.Context, attemp
 		}
 	}
 	return false, nil
+}
+
+func (s *Service) resolveGovernedCheckTerminationUnknown(ctx context.Context, attemptID domain.AttemptID, sessionID domain.SessionID) (bool, error) {
+	// Recovery can run before the periodic liveness tick. Consult the durable
+	// marker synchronously so that provider termination alone can never race
+	// ahead of unknown child-process custody evidence.
+	if blocked, err := s.importGovernedCheckUncertainty(ctx, attemptID, sessionID); err != nil || blocked {
+		return blocked, err
+	}
+	return s.hasGovernedCheckTerminationUnknown(ctx, attemptID)
 }
 
 // attemptFacts pairs derived heartbeat facts with the binding they came from.
