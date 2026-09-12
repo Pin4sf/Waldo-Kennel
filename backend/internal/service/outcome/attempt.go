@@ -356,6 +356,15 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	}
 
 	session := spawned.Session
+	if spawned.ExecutionPolicy == nil {
+		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous,
+			errors.New("governed spawn did not return its workspace-bound execution policy"))
+	}
+	policy = *spawned.ExecutionPolicy
+	if err := policy.ValidateWorkspaceRoot(session.Metadata.WorkspacePath); err != nil {
+		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous,
+			fmt.Errorf("governed spawn workspace evidence mismatch: %w", err))
+	}
 	mode := session.Mode
 	policyDigest, err := policy.Digest()
 	if err != nil {
@@ -601,9 +610,13 @@ func (s *Service) readModel(ctx context.Context, outcomeRecord domain.Outcome, a
 		}
 	}
 	unresolvedAdmission := false
+	unresolvedCheckTermination := false
 	for _, obs := range observations {
 		if obs.Kind == domain.ObservationAdmissionAmbiguous || obs.Kind == domain.ObservationActivationAmbiguous {
 			unresolvedAdmission = true
+		}
+		if obs.Kind == domain.ObservationGovernedCheckTerminationUnknown {
+			unresolvedCheckTermination = true
 		}
 	}
 	subjectProject, ok, err := s.store.GetOutcomeProjectID(ctx, outcomeRecord.ID)
@@ -620,7 +633,7 @@ func (s *Service) readModel(ctx context.Context, outcomeRecord domain.Outcome, a
 	}
 	return AttemptView{
 		Outcome: outcomeRecord, Attempt: attempt, Sessions: sessions, Observations: observations, Receipts: receipts, Fence: fence,
-		Presentation: domain.DeriveAttemptPresentation(attempt.Status, facts, unresolvedAdmission, domain.LivenessPolicy{Now: s.clock(), StaleHeartbeatAfter: s.staleHeartbeat}),
+		Presentation: domain.DeriveAttemptPresentation(attempt.Status, facts, unresolvedAdmission, unresolvedCheckTermination, domain.LivenessPolicy{Now: s.clock(), StaleHeartbeatAfter: s.staleHeartbeat}),
 	}, nil
 }
 
@@ -754,8 +767,9 @@ func renderRunBriefPrompt(revision domain.ContractRevision, unit domain.WorkUnit
 	}
 	b.WriteString("Verification: " + unit.VerificationRequirement + "\n")
 	if len(unit.Checks) > 0 {
-		b.WriteString("\nDaemon-owned approved verification checks (context only):\n")
-		b.WriteString("Kennel, not this worker, decides when to execute these checks. Their presence grants no additional command authority or capability.\n")
+		b.WriteString("\nApproved executable checks:\n")
+		b.WriteString("Kennel, not this worker, decides which exact commands are executable.\n")
+		b.WriteString("Use the governed repository run_approved_check tool with the check id. Do not reconstruct or run these vectors through another execution surface.\n")
 		for _, check := range unit.Checks {
 			b.WriteString("Check " + check.ID.String() + " for criterion " + check.CriterionID.String() + ":\n")
 			b.WriteString("- working directory: isolated worktree root\n")
@@ -766,6 +780,7 @@ func renderRunBriefPrompt(revision domain.ContractRevision, unit domain.WorkUnit
 			}
 		}
 	}
+	b.WriteString("\nUse only the governed repository tools Kennel exposes for repository reads, writes, and approved checks. If a required operation is not exposed, stop and report the exact missing affordance.\n")
 	if len(unit.StopConditions) > 0 {
 		b.WriteString("Stop conditions:\n")
 		for _, stop := range unit.StopConditions {

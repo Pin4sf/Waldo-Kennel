@@ -908,6 +908,9 @@ func toAPIError(err error) error {
 	case errors.Is(err, sessionmanager.ErrAgentNotExited):
 		return apierr.Conflict("AGENT_NOT_EXITED",
 			"The agent is still running; only exited agents can be resumed", nil)
+	case errors.Is(err, sessionmanager.ErrGovernedAttemptClosed):
+		return apierr.Conflict("GOVERNED_ATTEMPT_CLOSED",
+			"This governed Attempt has ended; retry or rework requires a new Attempt", nil)
 	case errors.Is(err, sessionmanager.ErrResumeInProgress):
 		return apierr.Conflict("AGENT_RESUME_IN_PROGRESS",
 			"The agent is already being resumed", nil)

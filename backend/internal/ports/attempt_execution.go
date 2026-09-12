@@ -36,7 +36,10 @@ type AttemptSpawnRequest struct {
 // Empty EffectiveModel is valid for provider-default runtimes that do not
 // expose the selected model.
 type AttemptSpawnResult struct {
-	Session            domain.Session
+	Session domain.Session
+	// ExecutionPolicy is the same packet after the session manager freezes the
+	// allocated workspace root. Governed callers persist this exact value.
+	ExecutionPolicy    *domain.AttemptExecutionPolicy
 	EffectiveModel     string
 	CompletionBoundary domain.AttemptCompletionBoundary
 }

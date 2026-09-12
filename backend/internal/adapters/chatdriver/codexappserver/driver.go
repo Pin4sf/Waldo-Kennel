@@ -87,16 +87,20 @@ var _ ports.ChatDriver = (*Driver)(nil)
 // Harness reports which agent this driver serves.
 func (d *Driver) Harness() domain.AgentHarness { return domain.HarnessCodex }
 
-// ValidateExecutionPolicy admits only Codex sandbox postures that preserve the
-// approved WorkUnit boundary. Codex's workspace-write sandbox is the narrowest
-// tested posture that permits local command execution; it is not used for a
-// write-only or execute-without-write policy because that would widen authority.
+// ValidateExecutionPolicy refuses governed work in App Server mode until that
+// transport can inject Kennel's private repository tool boundary. Falling back
+// to App Server's native filesystem tools would widen the approved policy.
 func (d *Driver) ValidateExecutionPolicy(ctx context.Context, policy domain.AttemptExecutionPolicy) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	_, err := codexpolicy.SandboxFor(policy)
-	return err
+	if err := policy.Validate(); err != nil {
+		return err
+	}
+	return &ports.ExecutionPolicyUnsupportedError{
+		Harness: domain.HarnessCodex, Capability: policy.RequiredCapabilities[0],
+		Detail: "Codex App Server has no verified Kennel-governed repository tool injection; use the governed TUI execution path",
+	}
 }
 
 // capabilities is what a Codex app-server of a supported version provides. Each

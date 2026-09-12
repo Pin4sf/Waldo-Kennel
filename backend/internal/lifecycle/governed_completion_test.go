@@ -33,6 +33,11 @@ func TestGovernedProcessExitRequiresCapabilityAndExactGenerationBeforeTerminatio
 		RunBriefCoreDigest: strings.Repeat("a", 64), RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
 		Grants: []domain.CapabilityGrant{{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"}},
 	}
+	var err error
+	policy, err = policy.BindWorkspaceRoot("/ws/session-1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	digest, err := policy.Digest()
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +56,7 @@ func TestGovernedProcessExitRequiresCapabilityAndExactGenerationBeforeTerminatio
 	base.sessions["session-1"] = domain.SessionRecord{
 		ID: "session-1", Harness: domain.HarnessCodex, Mode: domain.SessionModeTUI,
 		Metadata: domain.SessionMetadata{
-			RuntimeLaunchID: "launch-1", GovernedExecutionPolicyDigest: digest,
+			WorkspacePath: "/ws/session-1", RuntimeLaunchID: "launch-1", GovernedExecutionPolicyDigest: digest,
 			SupervisorCapabilityVerifier: "verifier-1",
 		},
 	}

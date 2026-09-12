@@ -280,7 +280,15 @@ func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest
 			completionBoundary = provider.GovernedCompletionBoundary()
 		}
 	}
-	return ports.AttemptSpawnResult{Session: sess, CompletionBoundary: completionBoundary}, nil
+	var boundPolicy *domain.AttemptExecutionPolicy
+	if req.ExecutionPolicy != nil {
+		bound, bindErr := req.ExecutionPolicy.BindWorkspaceRoot(sess.Metadata.WorkspacePath)
+		if bindErr != nil {
+			return ports.AttemptSpawnResult{}, fmt.Errorf("spawn returned a workspace inconsistent with its execution policy: %w", bindErr)
+		}
+		boundPolicy = &bound
+	}
+	return ports.AttemptSpawnResult{Session: sess, ExecutionPolicy: boundPolicy, CompletionBoundary: completionBoundary}, nil
 }
 
 func (a attemptSpawner) Terminate(ctx context.Context, _ domain.ProjectID, sessionID string) (ports.TerminationResult, error) {

@@ -97,6 +97,9 @@ func (s AdmissionSnapshot) ValidateSession(rec SessionRecord, ref AttemptSession
 	if s.ExecutionPolicy.RunBriefCoreDigest != s.RunBriefCoreDigest {
 		return fmt.Errorf("execution policy is bound to a different RunBrief")
 	}
+	if err := s.ExecutionPolicy.ValidateWorkspaceRoot(rec.Metadata.WorkspacePath); err != nil {
+		return fmt.Errorf("execution policy workspace binding: %w", err)
+	}
 	digest, err := s.ExecutionPolicy.Digest()
 	if err != nil {
 		return fmt.Errorf("execution policy digest: %w", err)

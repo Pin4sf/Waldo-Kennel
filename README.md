@@ -1,5 +1,9 @@
 # Waldo Kennel
 
+<p align="center">
+  <img src="docs/assets/brand/kennel-logo-mark.png" alt="Kennel logo" width="160">
+</p>
+
 **The user manages Outcomes. Kennel manages the execution required to make them true.**
 
 Kennel is a local-first desktop app for supervising coding agents. Describe what
@@ -62,7 +66,8 @@ A successful provider session or green check does not accept an Outcome.
 
 The desktop uses Electron/React. The loopback Go daemon owns canonical state in
 SQLite and exposes generated APIs to the desktop and thin CLI. See the
-[architecture](docs/architecture.md) and [documentation map](docs/README.md).
+[architecture](docs/architecture.md), [documentation map](docs/README.md), and
+[brand asset manifest](docs/assets/brand/README.md).
 
 Codex, Claude Code, OpenCode, Cursor and Pi are the five current execution
 provider identities. Available roles and capabilities depend on the installed,

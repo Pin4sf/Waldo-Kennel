@@ -40,6 +40,7 @@ export function createWindowComposition(options: {
 	options.mainWindow.contentView.addChildView(shellView, 0);
 
 	let overlayOpen = false;
+	let disposed = false;
 	const resize = (): void => {
 		if (options.mainWindow.isDestroyed?.()) return;
 		const bounds = options.mainWindow.contentView.getBounds();
@@ -68,8 +69,11 @@ export function createWindowComposition(options: {
 		setOverlayOpen,
 		resize,
 		dispose: () => {
-			options.mainWindow.contentView.removeListener("bounds-changed", resize);
+			if (disposed) return;
+			disposed = true;
+			if (options.mainWindow.isDestroyed?.()) return;
 			try {
+				options.mainWindow.contentView.removeListener("bounds-changed", resize);
 				options.mainWindow.contentView.removeChildView(shellView);
 			} catch {
 				// The BaseWindow may already have destroyed its content hierarchy.

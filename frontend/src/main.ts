@@ -2192,9 +2192,10 @@ app.whenReady().then(async () => {
 
 	registerRendererProtocol();
 	applyRuntimeAppIcon();
-	// Island is an explicit development surface until its Outcome projection
-	// is ready. A fresh Work launch must not start ambient session UI.
-	islandInitPromise = process.env.KENNEL_ENABLE_ISLAND === "1" ? initializeIsland() : Promise.resolve();
+	// Island is an ambient projection of daemon activity, not a second work
+	// surface. Its controller owns the persisted visibility preference and only
+	// creates a window when the display is supported and the owner enabled it.
+	islandInitPromise = initializeIsland();
 	if (isTrayEnabled(process.platform, app.isPackaged, app.getVersion())) {
 		const initialUiSettings = keybindingRunFile ? await readUiSettings(path.dirname(keybindingRunFile)) : { locale: "en" as const };
 		trayController = createTrayController({

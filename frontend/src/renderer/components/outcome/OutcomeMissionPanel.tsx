@@ -88,14 +88,6 @@ export function OutcomeMissionPanel({
 						· {t("mission.updated", { time: new Date(outcome.updatedAt).toLocaleString() })}
 					</p>
 				)}
-				{attention && (
-					<p className="text-xs">
-						<span className="font-medium">{t(`mission.lane.${attention.lane}`)}</span> ·{" "}
-						{attention.reason
-							? t(`mission.reason.${attention.reason}`, { defaultValue: attention.reason })
-							: t(`mission.next.${attention.lane}`)}
-					</p>
-				)}
 				<p role="status" className="text-xs text-muted-foreground">
 					{t(connection === "connected" ? "mission.connected" : "mission.offline")}
 				</p>
@@ -127,6 +119,18 @@ export function OutcomeMissionPanel({
 			) : (
 				outcome && (
 					<>
+						<MissionGlance
+							attention={attention}
+							connection={connection}
+							goal={outcome.currentRevision.goal}
+							loading={runQuery.isLoading}
+							onRefresh={() => {
+								void query.refetch();
+								void runQuery.refetch();
+								void planQuery.refetch();
+							}}
+							onSelect={setTab}
+						/>
 						<nav
 							aria-label={t("outcome.dashboard.missionControlAria", { title: outcome.title })}
 							className="flex shrink-0 flex-wrap gap-1 py-2"
@@ -224,6 +228,65 @@ export function OutcomeMissionPanel({
 					</>
 				)
 			)}
+		</section>
+	);
+}
+
+function MissionGlance({
+	attention,
+	connection,
+	goal,
+	loading,
+	onRefresh,
+	onSelect,
+}: {
+	attention: ReturnType<typeof runStateAttention>;
+	connection: ReturnType<typeof useEventsConnection>;
+	goal: string;
+	loading: boolean;
+	onRefresh: () => void;
+	onSelect: (tab: "contract" | "plan" | "execution" | "result" | "history") => void;
+}) {
+	const { t } = useTranslation();
+	const nextTab = attention.lane === "define"
+		? "contract"
+		: attention.lane === "authorize"
+			? "plan"
+			: attention.lane === "review" || attention.lane === "accepted"
+				? "result"
+				: "execution";
+	const nextLabel = attention.lane === "unavailable"
+		? t("mission.refresh")
+		: t(`mission.${nextTab}`);
+	const nextDescription = attention.reason
+		? t(`mission.reason.${attention.reason}`, { defaultValue: attention.reason })
+		: t(`mission.next.${attention.lane}`);
+
+	return (
+		<section className="flex flex-col gap-3 rounded-card hairline border-border bg-card px-3.5 py-3" data-testid="mission-glance">
+			<div className="flex flex-col gap-1">
+				<span className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">{t("mission.objective")}</span>
+				<p className="whitespace-pre-wrap break-words text-sm leading-body">{goal}</p>
+			</div>
+			<div className="flex flex-wrap items-end justify-between gap-3">
+				<div className="min-w-0 flex-1">
+					<span className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">{t("mission.state")}</span>
+					<p className="text-sm font-medium">
+						{loading ? t("outcome.overview.loading") : t(`mission.lane.${attention.lane}`)}
+					</p>
+					<p className="text-xs leading-body text-muted-foreground">
+						{connection !== "connected" ? t("mission.offline") : loading ? t("outcome.overview.loading") : nextDescription}
+					</p>
+				</div>
+				<Button
+					className="shrink-0"
+					onClick={attention.lane === "unavailable" ? onRefresh : () => onSelect(nextTab)}
+					size="sm"
+					variant="outline"
+				>
+					{nextLabel}
+				</Button>
+			</div>
 		</section>
 	);
 }

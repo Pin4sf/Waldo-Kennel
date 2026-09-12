@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -19,8 +20,44 @@ type AttemptExecutionPolicy struct {
 	WorkUnitID             WorkUnitID        `json:"workUnitId"`
 	ContractRevisionNumber int64             `json:"contractRevisionNumber"`
 	RunBriefCoreDigest     string            `json:"runBriefCoreDigest"`
+	WorkspaceRoot          string            `json:"workspaceRoot,omitempty"`
 	RequiredCapabilities   []string          `json:"requiredCapabilities"`
 	Grants                 []CapabilityGrant `json:"grants"`
+	ApprovedChecks         []ApprovedCheck   `json:"approvedChecks,omitempty"`
+}
+
+// BindWorkspaceRoot freezes the exact leased workspace into a policy after
+// workspace allocation but before any provider launch. Recovery must present
+// the same root; a policy is never silently rebound to a replacement path.
+func (p AttemptExecutionPolicy) BindWorkspaceRoot(root string) (AttemptExecutionPolicy, error) {
+	root = filepath.Clean(strings.TrimSpace(root))
+	if root == "." || !filepath.IsAbs(root) {
+		return AttemptExecutionPolicy{}, fmt.Errorf("execution policy workspace root must be absolute")
+	}
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
+	if p.WorkspaceRoot != "" && p.WorkspaceRoot != root {
+		return AttemptExecutionPolicy{}, fmt.Errorf("execution policy workspace root %q does not match %q", p.WorkspaceRoot, root)
+	}
+	p.WorkspaceRoot = root
+	if err := p.Validate(); err != nil {
+		return AttemptExecutionPolicy{}, err
+	}
+	return p, nil
+}
+
+// ValidateWorkspaceRoot proves a launch or restore is using the workspace
+// identity frozen before the original provider process started.
+func (p AttemptExecutionPolicy) ValidateWorkspaceRoot(root string) error {
+	root = filepath.Clean(strings.TrimSpace(root))
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
+	if p.WorkspaceRoot == "" || p.WorkspaceRoot != root {
+		return fmt.Errorf("execution policy workspace root %q does not match launch root %q", p.WorkspaceRoot, root)
+	}
+	return nil
 }
 
 // BuildAttemptExecutionPolicy selects only grants required by the admitted
@@ -70,6 +107,11 @@ func BuildAttemptExecutionPolicy(
 		}
 		grants = append(grants, grant)
 	}
+	checks := append([]ApprovedCheck(nil), unit.Checks...)
+	for i := range checks {
+		checks[i].Argv = append([]string(nil), checks[i].Argv...)
+	}
+	sort.Slice(checks, func(i, j int) bool { return checks[i].ID.String() < checks[j].ID.String() })
 
 	policy := AttemptExecutionPolicy{
 		OutcomeID:              outcomeID,
@@ -79,6 +121,7 @@ func BuildAttemptExecutionPolicy(
 		RunBriefCoreDigest:     strings.TrimSpace(runBriefCoreDigest),
 		RequiredCapabilities:   required,
 		Grants:                 grants,
+		ApprovedChecks:         checks,
 	}
 	if err := policy.Validate(); err != nil {
 		return AttemptExecutionPolicy{}, err
@@ -97,6 +140,9 @@ func (p AttemptExecutionPolicy) Validate() error {
 	if strings.TrimSpace(p.RunBriefCoreDigest) == "" {
 		return fmt.Errorf("execution policy RunBrief digest is required")
 	}
+	if p.WorkspaceRoot != "" && (!filepath.IsAbs(p.WorkspaceRoot) || filepath.Clean(p.WorkspaceRoot) != p.WorkspaceRoot) {
+		return fmt.Errorf("execution policy workspace root must be an absolute clean path")
+	}
 	required := uniqueSortedStrings(append([]string(nil), p.RequiredCapabilities...))
 	if len(required) == 0 {
 		return fmt.Errorf("execution policy requires at least one capability")
@@ -114,6 +160,24 @@ func (p AttemptExecutionPolicy) Validate() error {
 		if grant.Name != required[i] {
 			return fmt.Errorf("execution policy grant %q does not match required capability %q", grant.Name, required[i])
 		}
+	}
+	seenChecks := make(map[ApprovedCheckID]struct{}, len(p.ApprovedChecks))
+	lastCheckID := ""
+	for _, check := range p.ApprovedChecks {
+		if err := check.Validate(); err != nil {
+			return fmt.Errorf("execution policy: %w", err)
+		}
+		if _, exists := seenChecks[check.ID]; exists {
+			return fmt.Errorf("execution policy approved check %s is duplicated", check.ID)
+		}
+		if lastCheckID != "" && check.ID.String() < lastCheckID {
+			return fmt.Errorf("execution policy approved checks must be sorted by id")
+		}
+		seenChecks[check.ID] = struct{}{}
+		lastCheckID = check.ID.String()
+	}
+	if len(p.ApprovedChecks) > 0 && !p.Has(CapabilityWorktreeExec) {
+		return fmt.Errorf("execution policy approved checks require %s", CapabilityWorktreeExec)
 	}
 	return nil
 }

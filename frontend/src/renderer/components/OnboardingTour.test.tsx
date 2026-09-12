@@ -37,6 +37,7 @@ function resetStore() {
 		hasCompletedOnboarding: false,
 		isOnboardingOpen: false,
 		sessionsViewMode: "board",
+		createProjectNonce: 0,
 	});
 }
 
@@ -109,7 +110,7 @@ describe("OnboardingTour", () => {
 		expect(screen.getByLabelText("Step 2 of 3")).toBeInTheDocument();
 
 		fireEvent.click(screen.getByRole("button", { name: /Next/ }));
-		expect(screen.getByText("Pick your layout")).toBeInTheDocument();
+		expect(screen.getByText("Create your first Outcome")).toBeInTheDocument();
 
 		fireEvent.click(screen.getByRole("button", { name: "Back" }));
 		expect(screen.getByText("Coding agents")).toBeInTheDocument();
@@ -155,16 +156,14 @@ describe("OnboardingTour", () => {
 		};
 	});
 
-	it("records the layout choice and closes on finish", () => {
+	it("offers the real Project registration flow from the Outcome step", () => {
 		render(<OnboardingTour daemonReady />);
 		fireEvent.click(screen.getByRole("button", { name: /Let's go/ }));
 		fireEvent.click(screen.getByRole("button", { name: /Next/ }));
 
-		fireEvent.click(screen.getByRole("button", { name: "List" }));
-		expect(useUiStore.getState().sessionsViewMode).toBe("list");
-
-		fireEvent.click(screen.getByRole("button", { name: /Finish/ }));
+		fireEvent.click(screen.getByRole("button", { name: "Create a Project" }));
 		expect(screen.queryByTestId("onboarding-tour")).not.toBeInTheDocument();
+		expect(useUiStore.getState().createProjectNonce).toBe(1);
 		expect(window.localStorage.getItem("kennel.onboarding.completed")).toBe("true");
 	});
 

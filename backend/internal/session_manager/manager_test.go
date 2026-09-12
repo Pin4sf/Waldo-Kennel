@@ -271,6 +271,7 @@ type fakeRuntime struct {
 	interruptErr       error
 	interrupts         []string
 	onInterrupt        func(ports.RuntimeHandle)
+	onCreate           func(ports.RuntimeConfig)
 	// aliveByHandle maps a RuntimeHandle.ID to its liveness; missing = false.
 	aliveByHandle           map[string]bool
 	aliveErr                error
@@ -360,6 +361,9 @@ func (r *blockingRestartRuntime) Destroy(ctx context.Context, handle ports.Runti
 }
 
 func (r *fakeRuntime) Create(_ context.Context, cfg ports.RuntimeConfig) (ports.RuntimeHandle, error) {
+	if r.onCreate != nil {
+		r.onCreate(cfg)
+	}
 	if r.createErr != nil {
 		return ports.RuntimeHandle{}, r.createErr
 	}
@@ -1173,8 +1177,15 @@ func TestSpawn_ExactExecutionPolicyOverridesProjectPermissionsAndReachesLaunch(t
 		Worker:      domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{Permissions: domain.PermissionModeBypassPermissions}},
 	}}
 	agent := &recordingAgent{}
+	rt := &fakeRuntime{}
+	rt.onCreate = func(_ ports.RuntimeConfig) {
+		rec := st.sessions["mer-1"]
+		if rec.Metadata.WorkspacePath == "" || rec.Metadata.GovernedExecutionPolicyDigest == "" {
+			t.Fatalf("provider launch began before governed workspace evidence was durable: %+v", rec.Metadata)
+		}
+	}
 	m := New(Deps{
-		Runtime: &fakeRuntime{}, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st,
+		Runtime: rt, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st,
 		Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: func(string) (string, error) { return "/bin/true", nil },
 	})
 	policy := &domain.AttemptExecutionPolicy{

@@ -1,33 +1,26 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, ArrowRight, Check, Columns3, LayoutList, Sparkles, X } from "lucide-react";
-import type { TFunction } from "i18next";
-import {
-	effectiveShortcutBindings,
-	shortcutBindingKeys,
-	type AppShortcutId,
-} from "../../shared/shortcuts";
+import { ArrowLeft, ArrowRight, Check, FolderPlus, Sparkles, Target, X } from "lucide-react";
 import { agentLabel } from "../lib/agent-options";
-import { isMacPlatform } from "../lib/platform";
 import { cn } from "../lib/utils";
 import { refreshAgentsIfStale, useAgentsQuery } from "../hooks/useAgentsQuery";
 import { useSettings, useUpdateReasoning } from "../hooks/useSettings";
-import { useKeybindingsStore } from "../stores/keybindings-store";
-import { useUiStore, type SessionsViewMode } from "../stores/ui-store";
+import { useUiStore } from "../stores/ui-store";
 import { AgentAvatar } from "./AgentAvatar";
 import { Button } from "./ui/button";
 
 /**
  * First-run setup tour.
  *
- * Three steps, each one decision, in the order a person needs them: which agent
- * does the work and how the queue is laid out. Every step writes a real setting — the tour is setup, not a slideshow —
+ * Three steps, each one decision or next action, in the order a person needs
+ * them: which providers are ready and how to enter the first Outcome. Every
+ * setting remains reachable from Settings afterwards, so nothing
  * and every one of them is reachable again from Settings afterwards, so nothing
  * here is a one-shot choice a person can regret.
  */
 
-const STEP_IDS = ["welcome", "agent", "layout"] as const;
+const STEP_IDS = ["welcome", "agent", "outcome"] as const;
 type StepId = (typeof STEP_IDS)[number];
 
 // Spelled out rather than built from the step id: the typed `t` only accepts
@@ -35,15 +28,8 @@ type StepId = (typeof STEP_IDS)[number];
 const STEP_TITLE_KEYS = {
 	welcome: "onboarding.step.welcome.title",
 	agent: "onboarding.step.agent.title",
-	layout: "onboarding.step.layout.title",
+	outcome: "onboarding.step.outcome.title",
 } as const satisfies Record<StepId, string>;
-
-const TOUR_SHORTCUTS: AppShortcutId[] = [
-	"command-palette",
-	"new-session",
-	"toggle-sidebar",
-	"open-settings",
-];
 
 export function OnboardingTour({ daemonReady }: { daemonReady: boolean }) {
 	const { t } = useTranslation();
@@ -112,7 +98,7 @@ export function OnboardingTour({ daemonReady }: { daemonReady: boolean }) {
 					<div className="board-scrollbar h-onboarding-body shrink-0 overflow-y-auto px-4.5 py-5">
 						{stepId === "welcome" ? <WelcomeStep /> : null}
 						{stepId === "agent" ? <AgentStep /> : null}
-						{stepId === "layout" ? <LayoutStep /> : null}
+						{stepId === "outcome" ? <OutcomeStep /> : null}
 					</div>
 
 					<footer className="flex shrink-0 items-center justify-between gap-3 border-t border-border px-4.5 py-3">
@@ -207,9 +193,9 @@ function WelcomeStep() {
 			title: t("onboarding.welcome.agentTitle"),
 		},
 		{
-			body: t("onboarding.welcome.layoutBody"),
-			icon: <Columns3 aria-hidden="true" className="size-icon-md" />,
-			title: t("onboarding.welcome.layoutTitle"),
+			body: t("onboarding.welcome.outcomeBody", { defaultValue: "Register a Project, then describe your first Outcome in Work." }),
+			icon: <Target aria-hidden="true" className="size-icon-md" />,
+			title: t("onboarding.welcome.outcomeTitle", { defaultValue: "Start with an Outcome" }),
 		},
 	];
 	return (
@@ -353,98 +339,25 @@ function AgentStep() {
 	);
 }
 
-function LayoutStep() {
+function OutcomeStep() {
 	const { t } = useTranslation();
-	const sessionsViewMode = useUiStore((state) => state.sessionsViewMode);
-	const setSessionsViewMode = useUiStore((state) => state.setSessionsViewMode);
-	const overrides = useKeybindingsStore((state) => state.overrides);
-	const isMac = isMacPlatform();
-
-	const options: { icon: ReactNode; label: string; mode: SessionsViewMode }[] = [
-		{
-			icon: <Columns3 aria-hidden="true" className="size-icon-xl" />,
-			label: t("shell.viewBoard"),
-			mode: "board",
-		},
-		{
-			icon: <LayoutList aria-hidden="true" className="size-icon-xl" />,
-			label: t("shell.viewList"),
-			mode: "list",
-		},
-	];
+	const requestCreateProject = useUiStore((state) => state.requestCreateProject);
+	const closeOnboarding = useUiStore((state) => state.closeOnboarding);
 
 	return (
 		<div className="flex flex-col gap-4.5">
 			<StepHeading
-				description={t("onboarding.layout.body")}
-				title={t("onboarding.layout.heading")}
+				description={t("onboarding.outcome.body", { defaultValue: "Kennel keeps the responsibility with you. Register a Project, describe what you want to be true, then review the Contract and Plan before authorizing any work." })}
+				title={t("onboarding.outcome.heading", { defaultValue: "Create your first Outcome" })}
+				icon={<Target aria-hidden="true" className="size-icon-base text-muted-foreground" />}
 			/>
-			<div className="grid grid-cols-2 gap-1.5">
-				{options.map((option) => {
-					const isSelected = sessionsViewMode === option.mode;
-					return (
-						<button
-							aria-pressed={isSelected}
-							className={cn(
-								"flex flex-col items-center gap-2 rounded-md hairline px-3 py-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-								isSelected
-									? "border-border-strong bg-popover text-foreground"
-									: "border-border text-muted-foreground hover:bg-popover hover:text-foreground",
-							)}
-							key={option.mode}
-							onClick={() => setSessionsViewMode(option.mode)}
-							type="button"
-						>
-							{option.icon}
-							<span className="text-xs font-medium">{option.label}</span>
-						</button>
-					);
-				})}
-			</div>
-			{/* The shortcuts are read from the live keymap, not a hardcoded list, so a
-			    person who has already rebound something is taught their own keys. */}
-			<div className="flex flex-col gap-2 rounded-md hairline border-border bg-popover px-3 py-2.5">
-				<span className="text-xs font-medium text-foreground">
-					{t("onboarding.layout.shortcutsTitle")}
-				</span>
-				{TOUR_SHORTCUTS.map((id) => {
-					const binding = effectiveShortcutBindings(id, isMac, overrides)[0];
-					if (!binding) return null;
-					const keys = shortcutBindingKeys(binding, isMac);
-					return (
-						<div className="flex items-center gap-2" key={id}>
-							<span aria-label={keys.join("+")} className="flex shrink-0 items-center gap-1">
-								{keys.map((key) => (
-									<kbd
-										className="inline-flex min-w-5 items-center justify-center rounded-sm hairline border-border-strong bg-card px-1.5 py-0.5 text-2xs font-medium text-muted-foreground"
-										key={key}
-									>
-										{key}
-									</kbd>
-								))}
-							</span>
-							<span className="min-w-0 truncate text-2xs text-passive">
-								{shortcutHint(id, t)}
-							</span>
-						</div>
-					);
-				})}
+			<div className="flex flex-col gap-2 rounded-md hairline border-border bg-popover px-3 py-3">
+				<p className="text-xs leading-body text-passive">{t("onboarding.outcome.projectHint", { defaultValue: "A Project keeps repository context and provider preferences together. It does not start work." })}</p>
+				<Button className="self-start gap-1.5" onClick={() => { closeOnboarding(); requestCreateProject(); }} size="sm" variant="primary">
+					<FolderPlus aria-hidden="true" className="size-icon-sm" />
+					{t("onboarding.outcome.createProject", { defaultValue: "Create a Project" })}
+				</Button>
 			</div>
 		</div>
 	);
-}
-
-function shortcutHint(id: AppShortcutId, t: TFunction): string {
-	switch (id) {
-		case "command-palette":
-			return t("onboarding.layout.shortcut.commandPalette");
-		case "new-session":
-			return t("onboarding.layout.shortcut.newSession");
-		case "toggle-sidebar":
-			return t("onboarding.layout.shortcut.toggleSidebar");
-		case "open-settings":
-			return t("onboarding.layout.shortcut.openSettings");
-		default:
-			return id;
-	}
 }
