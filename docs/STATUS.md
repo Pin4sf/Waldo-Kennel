@@ -88,8 +88,17 @@ created canonical deterministic Evidence and Verification. Restart with the
 same isolated profile/data preserved exactly one succeeded Attempt and one
 terminated session without automatic duplication. Post-restart session
 inspection subsequently exposed a restore/duplicate-session error and app-exit
-disposal warning; those observations remain open and are not folded into Issue
-#115 completion. No owner Acceptance was created.
+disposal warning; those observations were left open at that checkpoint and are
+not folded into Issue #115 completion. No owner Acceptance was created.
+
+A [post-canary lifecycle follow-up](verification/2026-09-12-post-canary-lifecycle-and-issue-35-delta.md)
+now blocks manual, resume, and startup restoration of a terminal governed
+Attempt and guards destroyed-window composition disposal. Full Go tests,
+focused Electron lifecycle tests, typecheck, isolated-cache lint, and a fresh
+package build pass. That package has not been launched, so the UI-driven quit
+and restart behavior remains runtime-unverified. The follow-up also records the
+exact Issue #35 delta, including the still-open duplicate check invocation
+between the provider tool and terminal reconciliation.
 
 The [PR #110 handoff](handoffs/2026-09-12-pr110-launch-fixes/HANDOFF.md)
 and [execution ledger](handoffs/2026-09-12-pr110-launch-fixes/EXECUTION-LEDGER.md)
