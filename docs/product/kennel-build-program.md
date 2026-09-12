@@ -1,5 +1,11 @@
 # Kennel builds Kennel — kernel implementation program
 
+This program orders implementation of the v1 kernel. The public
+[`ROADMAP.md`](../../ROADMAP.md) places that kernel work inside launch and
+post-launch product milestones. The roadmap does not change the ontology or
+authorize implementation; [`../STATUS.md`](../STATUS.md) remains the record of
+what is integrated on `beta`.
+
 - **Status:** Active implementation program
 - **Date:** 2026-09-04
 - **Baseline:** `beta` after merged provider-core PR #92
