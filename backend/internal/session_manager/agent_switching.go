@@ -77,6 +77,7 @@ type preparedTargetActivation struct {
 	native                   domain.AgentNativeSession
 	nativeExpectedGeneration domain.AgentGenerationID
 	startMode                domain.AgentSwitchTargetStartMode
+	supervisorVerifier       string
 }
 
 type prFactReader interface {
@@ -245,6 +246,15 @@ func (m *Manager) admitAgentSwitch(ctx context.Context, id domain.SessionID, cfg
 	}
 	if rec.Metadata.WorkspacePath == "" || rec.Metadata.RuntimeHandleID == "" {
 		return domain.AgentSwitch{}, nil, fmt.Errorf("switch agent %s: %w", id, ErrIncompleteHandle)
+	}
+	// A governed session is bound to an admitted Attempt's frozen
+	// ExecutionPolicy and provider binding. Switching would launch a target
+	// outside that policy/provider, so refuse here — before any target
+	// process, target generation, or canonical state change — rather than
+	// relying on the UI to grey out the control or special-casing a provider
+	// name. Governed provider migration is a separate, unshipped capability.
+	if m.sessionIsGoverned(ctx, rec) {
+		return domain.AgentSwitch{}, nil, fmt.Errorf("switch agent %s: %w", id, ErrGovernedSwitchUnsupported)
 	}
 	// Switch targets are capability-gated beyond plain worker admission:
 	// continuing a prior conversation needs verified continuation identity and
@@ -728,6 +738,7 @@ func (m *Manager) executeAgentSwitch(ctx context.Context, admitted *admittedAgen
 		TargetNativeSessionRef:        target.native.ID,
 		TargetGenerationID:            target.launchID,
 		RuntimeHandleID:               handle.ID,
+		SupervisorCapabilityVerifier:  target.supervisorVerifier,
 		ActivatedAt:                   activatedAt,
 	}
 	activated, activationErr := m.lcm.ActivateAgentSwitchTarget(ctx, activation)
@@ -1172,7 +1183,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 		return preparedTargetActivation{}, err
 	}
 	m.augmentRuntimePATHForLaunchBinary(ctx, env, argv)
-	argv, rawLaunchID, err := m.superviseAgentProcessForSwitch(agent, rec.ID, env, argv)
+	argv, rawLaunchID, supervisorVerifier, err := m.superviseAgentProcessForSwitch(agent, rec.ID, env, argv, rec.Metadata.GovernedExecutionPolicyDigest != "")
 	if err != nil {
 		return preparedTargetActivation{}, fmt.Errorf("supervisor: %w", err)
 	}
@@ -1193,7 +1204,8 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 	return preparedTargetActivation{
 		agent: agent, harness: harness, env: env, launch: launch, argv: argv,
 		launchID: launchID, native: candidate, nativeExpectedGeneration: expectedGeneration,
-		startMode: mode,
+		startMode:          mode,
+		supervisorVerifier: supervisorVerifier,
 	}, nil
 }
 

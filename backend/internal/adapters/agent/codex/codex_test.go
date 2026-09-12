@@ -423,6 +423,10 @@ func TestResolveCodexBinaryFindsNVMInstallWhenPathIsSparse(t *testing.T) {
 	if err := os.WriteFile(want, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	want, err := filepath.EvalSymlinks(want)
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("HOME", home)
 	t.Setenv("PATH", "")
 	origFileExists := fileExists
@@ -461,6 +465,41 @@ func TestResolveCodexBinaryFindsChatGPTBundledInstallWhenPathIsSparse(t *testing
 	}
 	if got != want {
 		t.Fatalf("ResolveCodexBinary = %q, want %q", got, want)
+	}
+}
+
+func TestResolveCodexBinaryPreservesNativeSidecarDirectoryAcrossPATHSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix symlink resolution")
+	}
+	targetDir := t.TempDir()
+	target := filepath.Join(targetDir, "codex")
+	if err := os.WriteFile(target, []byte("native codex"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(targetDir, "codex-code-mode-host"), []byte("sidecar"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pathDir := t.TempDir()
+	shim := filepath.Join(pathDir, "codex")
+	if err := os.Symlink(target, shim); err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", pathDir)
+
+	got, err := ResolveCodexBinary(context.Background())
+	if err != nil {
+		t.Fatalf("ResolveCodexBinary: %v", err)
+	}
+	if got != want {
+		t.Fatalf("ResolveCodexBinary = %q, want real executable %q", got, want)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(got), "codex-code-mode-host")); err != nil {
+		t.Fatalf("sidecar beside resolved executable: %v", err)
 	}
 }
 
@@ -577,6 +616,20 @@ func TestGetLaunchCommandMapsAttemptExecutionPolicy(t *testing.T) {
 	}
 	if contains(cmd, "--dangerously-bypass-approvals-and-sandbox") {
 		t.Fatalf("policy launch retained broad bypass: %#v", cmd)
+	}
+	if !contains(cmd, "exec") {
+		t.Fatalf("governed launch did not use one-shot codex exec: %#v", cmd)
+	}
+}
+
+func TestGetLaunchCommandKeepsOrdinarySessionInteractive(t *testing.T) {
+	plugin := &Plugin{resolvedBinary: "codex"}
+	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{Prompt: "continue interactively"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contains(cmd, "exec") {
+		t.Fatalf("ordinary launch unexpectedly used one-shot exec: %#v", cmd)
 	}
 }
 
@@ -1048,6 +1101,22 @@ func TestGetRestoreCommandPinsGovernedWorkspaceWriteBoundary(t *testing.T) {
 	}
 	if containsSubsequence(cmd, []string{"--ask-for-approval", "never"}) || !containsSubsequence(cmd, []string{"--ask-for-approval", "on-request"}) {
 		t.Fatalf("restore command %#v did not force governed approval posture", cmd)
+	}
+	if !containsSubsequence(cmd, []string{"exec", "resume", "thread-123"}) {
+		t.Fatalf("governed restore did not use one-shot codex exec resume: %#v", cmd)
+	}
+}
+
+func TestGetRestoreCommandKeepsOrdinarySessionInteractive(t *testing.T) {
+	plugin := &Plugin{resolvedBinary: "codex"}
+	cmd, ok, err := plugin.GetRestoreCommand(context.Background(), ports.RestoreConfig{
+		Session: ports.SessionRef{Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "thread-ordinary"}},
+	})
+	if err != nil || !ok {
+		t.Fatalf("restore = (ok=%v, err=%v), want ok", ok, err)
+	}
+	if len(cmd) < 2 || cmd[0] != "codex" || cmd[1] != "resume" || contains(cmd, "exec") {
+		t.Fatalf("ordinary restore did not preserve interactive resume: %#v", cmd)
 	}
 }
 

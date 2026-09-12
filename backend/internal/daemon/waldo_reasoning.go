@@ -26,6 +26,21 @@ const (
 	providerCodex     = "codex"
 )
 
+// planningProviderID maps a reasoning settings provider identifier onto the
+// exact provenance ID its LLM client reports as EffectiveProvider. The
+// anthropic and openai clients' IDs already equal their settings provider
+// string, but the Codex harness client's ID is
+// codexappserver.IntelligenceProviderID ("codex-app-server"), not "codex". A
+// PlanningBinding built from the raw settings string never matches Codex's
+// actual response provenance, so every native Codex planning turn is refused
+// as PLANNING_PROVIDER_MISMATCH regardless of the model's real answer.
+func planningProviderID(settingsProvider string) domain.IntelligenceProviderID {
+	if settingsProvider == providerCodex {
+		return domain.IntelligenceProviderID(codexappserver.IntelligenceProviderID)
+	}
+	return domain.IntelligenceProviderID(settingsProvider)
+}
+
 // reasoningConfig is the resolved answer to "whose model, and with what key".
 type reasoningConfig struct {
 	Provider string
@@ -227,7 +242,7 @@ func (p *configuredIntelligenceProvider) PlanningCandidates(ctx context.Context)
 		}
 	}
 	binding := domain.PlanningBinding{
-		Mode: mode, Provider: domain.IntelligenceProviderID(status.Provider), ModelSelection: selection,
+		Mode: mode, Provider: planningProviderID(status.Provider), ModelSelection: selection,
 		Model: model, Effort: strings.TrimSpace(status.Effort),
 	}
 	return []ports.PlanningCandidate{{
@@ -255,7 +270,7 @@ func (p *configuredIntelligenceProvider) DiscussPlan(ctx context.Context, reques
 		mode = domain.PlanningModeNativeHarness
 	}
 	current := domain.PlanningBinding{
-		Mode: mode, Provider: domain.IntelligenceProviderID(cfg.Provider),
+		Mode: mode, Provider: planningProviderID(cfg.Provider),
 		ModelSelection: selection, Model: model, Effort: strings.TrimSpace(cfg.Effort),
 	}
 	if current != request.Binding {

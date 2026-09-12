@@ -19,6 +19,10 @@ func TestSessionInterfaceTransitionClaimModeCASAndOutbox(t *testing.T) {
 	rec.Metadata.RuntimeHandleID = "tmux-switch-1"
 	rec.Metadata.RuntimeLaunchID = "tui-generation-1"
 	rec.Metadata.AgentSessionID = "native-conversation-1"
+	staleExitCode := 7
+	rec.Metadata.SupervisorCapabilityVerifier = "tui-supervisor-verifier"
+	rec.Metadata.SupervisedProcessExitCode = &staleExitCode
+	rec.Metadata.SupervisedProcessExitReason = "failed"
 	createdSession, err := st.CreateSession(ctx, rec)
 	if err != nil {
 		t.Fatalf("create session: %v", err)
@@ -81,7 +85,9 @@ func TestSessionInterfaceTransitionClaimModeCASAndOutbox(t *testing.T) {
 	}
 	if after.Metadata.AgentSessionID != transition.NativeConversationID ||
 		after.Metadata.ProviderConversationID != transition.NativeConversationID ||
-		after.Metadata.ControllerGeneration != "" {
+		after.Metadata.ControllerGeneration != "" ||
+		after.Metadata.SupervisorCapabilityVerifier != "" ||
+		after.Metadata.SupervisedProcessExitCode != nil || after.Metadata.SupervisedProcessExitReason != "" {
 		t.Fatalf("switched native facts = %+v", after.Metadata)
 	}
 	if after.Activity.State != domain.ActivityIdle {

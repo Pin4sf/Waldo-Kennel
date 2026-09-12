@@ -30,6 +30,10 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
 )
 
+type supervisorCapabilityValidator interface {
+	Valid(sessionID domain.SessionID, launchID, token, verifier string) bool
+}
+
 type notificationSink interface {
 	Notify(context.Context, ports.NotificationIntent) error
 	Resolve(context.Context, ports.NotificationResolution) error
@@ -54,12 +58,13 @@ type lifecycleStack struct {
 // reaper. The goroutine stops when ctx is cancelled; Stop waits for it to drain.
 // The messenger is the per-daemon agent messenger the LCM uses to nudge agents
 // in response to SCM observations (CI failure, review feedback, merge conflict).
-func startLifecycle(ctx context.Context, store *sqlite.Store, runtime ports.Runtime, messenger ports.AgentMessenger, notifier notificationSink, telemetry ports.EventSink, agents ports.AgentResolver, logger *slog.Logger) *lifecycleStack {
+func startLifecycle(ctx context.Context, store *sqlite.Store, runtime ports.Runtime, messenger ports.AgentMessenger, notifier notificationSink, telemetry ports.EventSink, agents ports.AgentResolver, supervisor supervisorCapabilityValidator, logger *slog.Logger) *lifecycleStack {
 	lcm := lifecycle.New(store, messenger,
 		lifecycle.WithNotificationSink(notifier),
 		lifecycle.WithTelemetry(telemetry),
 		lifecycle.WithContainerReaper(dockerreap.New(), store),
 		lifecycle.WithActiveSteering(activeTurnSteering(agents)),
+		lifecycle.WithSupervisorCapabilityValidator(supervisor),
 	)
 	rp := reaper.New(lcm, store, runtime, reaper.Config{Logger: logger})
 	activityPoller := activityobserver.New(store, lcm, runtime, agents, activityobserver.Config{Logger: logger})
@@ -170,7 +175,7 @@ func (m sessionLifecycleMessenger) Send(ctx context.Context, id domain.SessionID
 // LCM, the per-session agent resolver, and the agent messenger. The returned
 // service is mounted at httpd APIDeps.Sessions. It also returns the manager so
 // the caller can wire Reconcile into the boot sequence.
-func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.Runtime, store *sqlite.Store, lcm *lifecycle.Manager, messenger ports.AgentMessenger, telemetry ports.EventSink, agents ports.AgentResolver, previewLifecycle sessionmanager.PreviewLifecycle, browserLifecycle sessionmanager.BrowserLifecycle, browserCapabilities sessionmanager.BrowserCapabilityIssuer, chat sessionmanager.ChatLauncher, defaults sessionmanager.SessionModeDefaults, log *slog.Logger) (*sessionsvc.Service, reviewsvc.Manager, sessionLifecycle, error) {
+func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.Runtime, store *sqlite.Store, lcm *lifecycle.Manager, messenger ports.AgentMessenger, telemetry ports.EventSink, agents ports.AgentResolver, previewLifecycle sessionmanager.PreviewLifecycle, browserLifecycle sessionmanager.BrowserLifecycle, browserCapabilities sessionmanager.BrowserCapabilityIssuer, supervisorCapabilities sessionmanager.SupervisorCapabilityIssuer, chat sessionmanager.ChatLauncher, defaults sessionmanager.SessionModeDefaults, log *slog.Logger) (*sessionsvc.Service, reviewsvc.Manager, sessionLifecycle, error) {
 	gitWS, err := gitworktree.New(gitworktree.Options{
 		// Per-session worktrees live under the data dir, so a single KENNEL_DATA_DIR
 		// override moves all durable per-user state together.
@@ -195,20 +200,22 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 		Projects: store,
 	})
 	mgr := sessionmanager.New(sessionmanager.Deps{
-		Runtime:             runtime,
-		Agents:              agents,
-		Workspace:           ws,
-		Store:               store,
-		Messenger:           messenger,
-		Chat:                chat,
-		Defaults:            defaults,
-		Lifecycle:           lcm,
-		Preview:             previewLifecycle,
-		Browser:             browserLifecycle,
-		BrowserCapabilities: browserCapabilities,
-		DataDir:             cfg.DataDir,
-		BackgroundContext:   ctx,
-		Logger:              log,
+		Runtime:                runtime,
+		Agents:                 agents,
+		Workspace:              ws,
+		Store:                  store,
+		Messenger:              messenger,
+		Chat:                   chat,
+		Defaults:               defaults,
+		Lifecycle:              lcm,
+		Preview:                previewLifecycle,
+		Browser:                browserLifecycle,
+		BrowserCapabilities:    browserCapabilities,
+		SupervisorCapabilities: supervisorCapabilities,
+		DataDir:                cfg.DataDir,
+		RunFile:                cfg.RunFilePath,
+		BackgroundContext:      ctx,
+		Logger:                 log,
 	})
 	scmProvider := newMultiSCMProvider(cfg.GitLab, log)
 	// Build the multi-tracker dispatching to both GitHub and GitLab. The

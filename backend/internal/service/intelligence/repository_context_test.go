@@ -24,12 +24,12 @@ func TestLargeRepositoryRetainsInspectedContextAtEntryLimit(t *testing.T) {
 	if err := os.Mkdir(deep, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < contextMaxVisited+1; i++ {
+	for i := 0; i < DefaultRepositoryContextLimits.MaxVisited+1; i++ {
 		if err := os.WriteFile(filepath.Join(deep, fmt.Sprintf("entry-%04d.dat", i)), nil, 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := BuildRepositoryContext(context.Background(), domain.ProjectRecord{ID: "large", Path: root}, nil)
+	snapshot, err := BuildRepositoryContext(context.Background(), domain.ProjectRecord{ID: "large", Path: root}, nil, DefaultRepositoryContextLimits)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestMainContextIncludesBoundedPrefixesAndRejectsSymlinkedPriorityDirectorie
 	if err := os.Symlink(outside, filepath.Join(root, "docs")); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := BuildRepositoryContext(context.Background(), domain.ProjectRecord{ID: "prefix", Path: root}, nil)
+	snapshot, err := BuildRepositoryContext(context.Background(), domain.ProjectRecord{ID: "prefix", Path: root}, nil, DefaultRepositoryContextLimits)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestBuildRepositoryContextBoundsFilesAndExcludesIgnoredSymlinkedSecrets(t *
 		t.Fatal(err)
 	}
 
-	snapshot, err := BuildRepositoryContext(context.Background(), domain.ProjectRecord{ID: "project-context", Path: root}, nil)
+	snapshot, err := BuildRepositoryContext(context.Background(), domain.ProjectRecord{ID: "project-context", Path: root}, nil, DefaultRepositoryContextLimits)
 	if err != nil {
 		t.Fatalf("BuildRepositoryContext() error = %v", err)
 	}
@@ -134,7 +134,7 @@ func TestBuildRepositoryContextStopsWhenCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	snapshot, err := BuildRepositoryContext(ctx, domain.ProjectRecord{ID: "cancelled", Path: root}, nil)
+	snapshot, err := BuildRepositoryContext(ctx, domain.ProjectRecord{ID: "cancelled", Path: root}, nil, DefaultRepositoryContextLimits)
 	if err != nil {
 		t.Fatalf("BuildRepositoryContext() error = %v", err)
 	}
@@ -162,6 +162,68 @@ func TestIgnoredByGitDistinguishesNotIgnoredFromGitFailure(t *testing.T) {
 	}
 	if ignored, err := ignoredByGit(context.Background(), root, "README.md"); err != nil || ignored {
 		t.Fatalf("ignoredByGit() = ignored=%v, err=%v; want clean not-ignored result", ignored, err)
+	}
+}
+
+// TestUncappedRepositoryContextLimitsDoNotGiveUpDiscovery pins the owner
+// escape hatch: a zero/negative MaxVisited must never make discovery give up,
+// no matter how many entries exist. This is the direct regression for the
+// launch-stabilization finding: a fixed, too-low discovery cap silently
+// blocked planning against an ordinary real repository.
+func TestUncappedRepositoryContextLimitsDoNotGiveUpDiscovery(t *testing.T) {
+	root := t.TempDir()
+	if err := runGit(root, "init", "-q"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("verified repository overview"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deep := filepath.Join(root, "source")
+	if err := os.Mkdir(deep, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < DefaultRepositoryContextLimits.MaxVisited+1; i++ {
+		if err := os.WriteFile(filepath.Join(deep, fmt.Sprintf("entry-%04d.dat", i)), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	uncapped := RepositoryContextLimits{MaxFiles: DefaultRepositoryContextLimits.MaxFiles, MaxBytes: DefaultRepositoryContextLimits.MaxBytes, MaxVisited: 0}
+	snapshot, err := BuildRepositoryContext(context.Background(), domain.ProjectRecord{ID: "uncapped", Path: root}, nil, uncapped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The fixture repository has no commit, so "revision could not be
+	// inspected" is an unrelated, expected note here (matching every other
+	// test in this file, none of which commit). What this test actually pins
+	// is that hitting more entries than the *default* MaxVisited no longer
+	// reports the entry-limit message once MaxVisited is uncapped.
+	if strings.Contains(snapshot.UnavailableReason, "entry limit") {
+		t.Fatalf("uncapped MaxVisited still reported a discovery entry-limit: %q", snapshot.UnavailableReason)
+	}
+	if len(snapshot.Files) != 1 || snapshot.Files[0].Content != "verified repository overview" {
+		t.Fatalf("uncapped discovery lost the inspected root context: %#v", snapshot.Files)
+	}
+}
+
+// TestUncappedMaxBytesRetainsFullFileContent pins the token-management half
+// of the same escape hatch: a zero MaxBytes must not truncate content that
+// otherwise fits under the fixed per-file cap.
+func TestUncappedMaxBytesRetainsFullFileContent(t *testing.T) {
+	root := t.TempDir()
+	if err := runGit(root, "init", "-q"); err != nil {
+		t.Fatal(err)
+	}
+	content := strings.Repeat("x", contextMaxFile/2)
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	uncapped := RepositoryContextLimits{MaxFiles: 1, MaxBytes: 0, MaxVisited: DefaultRepositoryContextLimits.MaxVisited}
+	snapshot, err := BuildRepositoryContext(context.Background(), domain.ProjectRecord{ID: "uncapped-bytes", Path: root}, nil, uncapped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Files) != 1 || snapshot.Files[0].Truncated || len(snapshot.Files[0].Content) != len(content) {
+		t.Fatalf("uncapped MaxBytes truncated content: %#v", snapshot.Files)
 	}
 }
 

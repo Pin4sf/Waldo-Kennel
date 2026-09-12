@@ -76,9 +76,13 @@ const (
 	ReasonAlreadyAccepted      = "already_accepted"
 	ReasonContributionBlocked  = "contribution_blocked"
 	ReasonAttemptNeedsRecovery = "attempt_needs_recovery"
-	ReasonRunIntentUnavailable = "run_intent_unavailable"
-	ReasonDeliveryUnavailable  = "delivery_unavailable"
-	ReasonNotAccepted          = "not_accepted"
+	// ReasonAttemptReplacementRequired means a terminal Attempt made the unit
+	// scheduler-retryable, but the owner has not yet authorized a replacement.
+	// Durable run intent is continuation authority, not infinite retry policy.
+	ReasonAttemptReplacementRequired = "attempt_replacement_required"
+	ReasonRunIntentUnavailable       = "run_intent_unavailable"
+	ReasonDeliveryUnavailable        = "delivery_unavailable"
+	ReasonNotAccepted                = "not_accepted"
 	// ReasonRunAlreadyAuthorized means durable run intent already authorizes
 	// continuation, so Start has nothing left to authorize. CommandRun refuses
 	// a second Start for exactly this reason.
@@ -289,6 +293,12 @@ func (s *Service) runStateFor(ctx context.Context, record domain.Outcome, projec
 		proof: proof, gate: gate, active: active, schedule: schedule,
 		intent: currentIntent, runIntentsEnabled: s.RunIntentsEnabled(),
 	}
+	if schedule != nil && !schedule.NextRunnableID.IsZero() && currentIntent != nil {
+		_, inputs.replacementRequired, err = s.replacementAdmission(ctx, record.ID, *currentIntent, *schedule)
+		if err != nil {
+			return RunStateView{}, err
+		}
+	}
 	view.State, view.AttentionReason, view.Blocker = deriveMissionState(inputs)
 	view.EligibleActions = deriveEligibleActions(view, inputs)
 	return view, nil
@@ -311,6 +321,9 @@ type missionInputs struct {
 	// from one that simply has none yet. The two refuse Pause for different
 	// reasons and only the first is a wiring fault.
 	runIntentsEnabled bool
+	// replacementRequired is true only when the next scheduler-ready unit has
+	// a terminal predecessor and no replacement recovery receipt yet.
+	replacementRequired bool
 }
 
 // desiredRun is the authorization the daemon will act on. No recorded intent
@@ -489,6 +502,12 @@ func deriveMissionState(in missionInputs) (MissionState, string, *RunBlocker) {
 			}
 		}
 		if in.schedule != nil && !in.schedule.NextRunnableID.IsZero() {
+			if in.replacementRequired {
+				return MissionNeedsYou, ReasonAttemptReplacementRequired, &RunBlocker{
+					Code:    ReasonAttemptReplacementRequired,
+					Message: "The last Attempt ended — review it and authorize a replacement before Kennel runs this WorkUnit again",
+				}
+			}
 			// The owner already authorized continuation and the daemon admits
 			// the next unit itself. Asking for another Start here would offer a
 			// command CommandRun refuses.

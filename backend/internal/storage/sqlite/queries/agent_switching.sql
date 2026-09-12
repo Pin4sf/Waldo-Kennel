@@ -319,6 +319,9 @@ UPDATE sessions SET
     first_signal_at = NULL,
     runtime_handle_id = sqlc.arg(runtime_handle_id),
     runtime_launch_id = sqlc.arg(target_generation_id),
+    supervisor_capability_verifier = sqlc.arg(supervisor_capability_verifier),
+    supervised_process_exit_code = NULL,
+    supervised_process_exit_reason = '',
     agent_session_id = sqlc.arg(target_native_session_id),
     native_transcript_path = sqlc.arg(target_native_transcript_path),
     updated_at = sqlc.arg(activated_at)

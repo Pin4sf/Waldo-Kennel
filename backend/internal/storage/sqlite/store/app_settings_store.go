@@ -35,7 +35,13 @@ type AppSettings struct {
 	ReasoningGeneration              int64
 	ReasoningVerifiedGeneration      int64
 	ReasoningVerificationFingerprint string
-	UpdatedAt                        time.Time
+	// RepositoryContextMaxFiles/MaxBytes/MaxVisited are the owner-configured
+	// bounds for Waldo's bounded repository-context packet. Nil means the
+	// owner has not overridden Kennel's built-in default; zero means uncapped.
+	RepositoryContextMaxFiles   *int64
+	RepositoryContextMaxBytes   *int64
+	RepositoryContextMaxVisited *int64
+	UpdatedAt                   time.Time
 }
 
 // GetAppSettings reads the preference row.
@@ -57,8 +63,57 @@ func (s *Store) GetAppSettings(ctx context.Context) (AppSettings, error) {
 		ReasoningGeneration:              row.ReasoningGeneration,
 		ReasoningVerifiedGeneration:      row.ReasoningVerifiedGeneration,
 		ReasoningVerificationFingerprint: row.ReasoningVerificationFingerprint,
+		RepositoryContextMaxFiles:        int64Ptr(row.RepositoryContextMaxFiles),
+		RepositoryContextMaxBytes:        int64Ptr(row.RepositoryContextMaxBytes),
+		RepositoryContextMaxVisited:      int64Ptr(row.RepositoryContextMaxVisited),
 		UpdatedAt:                        row.UpdatedAt,
 	}, nil
+}
+
+// toNullInt64 converts Go's natural "not set" representation (a nil pointer)
+// into the nullable SQLite column shape.
+func toNullInt64(v *int64) sql.NullInt64 {
+	if v == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *v, Valid: true}
+}
+
+// PatchRepositoryContextLimits serializes the read/merge/write under the same
+// canonical writer lock used by every app-settings mutation. Concurrent PATCH
+// requests for different fields therefore cannot overwrite one another with a
+// stale full snapshot. A present nil value clears the override; zero uncaps it.
+func (s *Store) PatchRepositoryContextLimits(
+	ctx context.Context,
+	maxFilesPresent bool, maxFiles *int64,
+	maxBytesPresent bool, maxBytes *int64,
+	maxVisitedPresent bool, maxVisited *int64,
+	now time.Time,
+) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	current, err := s.qr.GetAppSettings(ctx)
+	if err != nil {
+		return fmt.Errorf("read repository context limits for patch: %w", err)
+	}
+	if !maxFilesPresent {
+		maxFiles = int64Ptr(current.RepositoryContextMaxFiles)
+	}
+	if !maxBytesPresent {
+		maxBytes = int64Ptr(current.RepositoryContextMaxBytes)
+	}
+	if !maxVisitedPresent {
+		maxVisited = int64Ptr(current.RepositoryContextMaxVisited)
+	}
+	if err := s.qw.SetRepositoryContextLimits(ctx, gen.SetRepositoryContextLimitsParams{
+		RepositoryContextMaxFiles:   toNullInt64(maxFiles),
+		RepositoryContextMaxBytes:   toNullInt64(maxBytes),
+		RepositoryContextMaxVisited: toNullInt64(maxVisited),
+		UpdatedAt:                   now,
+	}); err != nil {
+		return fmt.Errorf("set repository context limits: %w", err)
+	}
+	return nil
 }
 
 // SetReasoningSettings stores only non-secret reasoning preferences. The

@@ -40,17 +40,23 @@ const (
 // state; ToolName/ToolUseID are the tool-use correlation facts lifted from the
 // native payload when present. All four are optional: an old daemon decodes
 // the body leniently and simply ignores them.
+type supervisedProcessExitRequest struct {
+	ExitCode *int   `json:"exitCode"`
+	Reason   string `json:"reason"`
+}
+
 type setActivityAPIRequest struct {
-	State                 string             `json:"state,omitempty"`
-	Event                 string             `json:"event,omitempty"`
-	ToolName              string             `json:"toolName,omitempty"`
-	ToolUseID             string             `json:"toolUseId,omitempty"`
-	AgentSessionID        string             `json:"agentSessionId,omitempty"`
-	LatestUserPrompt      string             `json:"latestUserPrompt,omitempty"`
-	LatestAssistantUpdate string             `json:"latestAssistantUpdate,omitempty"`
-	TranscriptPath        string             `json:"transcriptPath,omitempty"`
-	LaunchID              string             `json:"launchId,omitempty"`
-	Usage                 *usageHookMetadata `json:"usage,omitempty"`
+	State                 string                        `json:"state,omitempty"`
+	Event                 string                        `json:"event,omitempty"`
+	ToolName              string                        `json:"toolName,omitempty"`
+	ToolUseID             string                        `json:"toolUseId,omitempty"`
+	AgentSessionID        string                        `json:"agentSessionId,omitempty"`
+	LatestUserPrompt      string                        `json:"latestUserPrompt,omitempty"`
+	LatestAssistantUpdate string                        `json:"latestAssistantUpdate,omitempty"`
+	TranscriptPath        string                        `json:"transcriptPath,omitempty"`
+	LaunchID              string                        `json:"launchId,omitempty"`
+	ProcessExit           *supervisedProcessExitRequest `json:"processExit,omitempty"`
+	Usage                 *usageHookMetadata            `json:"usage,omitempty"`
 }
 
 type usageHookMetadata struct {

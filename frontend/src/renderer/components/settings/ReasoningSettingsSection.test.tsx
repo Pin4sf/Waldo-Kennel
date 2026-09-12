@@ -14,6 +14,14 @@ vi.mock("../../hooks/useSettings", () => ({
 const settings = {
 	defaultSessionMode: "tui" as const,
 	chatHarnesses: ["codex"],
+	repositoryContext: {
+		maxFiles: null,
+		maxBytes: null,
+		maxVisited: null,
+		effectiveMaxFiles: 32,
+		effectiveMaxBytes: 96 * 1024,
+		effectiveMaxVisited: 20_000,
+	},
 	reasoning: {
 		mode: "",
 		provider: "anthropic",

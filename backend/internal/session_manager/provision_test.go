@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/codex"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
@@ -17,6 +18,12 @@ type fixedBrowserCapability string
 
 func (f fixedBrowserCapability) Issue(_ domain.SessionID) (string, string, error) {
 	return string(f), "verifier-1", nil
+}
+
+type fixedSupervisorCapability string
+
+func (f fixedSupervisorCapability) Issue(_ domain.SessionID, _ string) (string, string, error) {
+	return string(f), "supervisor-verifier-1", nil
 }
 
 func TestSpawnEnvProjectVarsCannotOverrideInternal(t *testing.T) {
@@ -67,6 +74,21 @@ func TestRuntimeEnvClearsDaemonBrowserRuntimeSecrets(t *testing.T) {
 	})
 	if env[EnvBrowserRuntimeToken] != "" || env[EnvBrowserRuntimeTokenStdin] != "" {
 		t.Fatalf("daemon browser runtime credentials leaked to worker: token=%q stdin=%q", env[EnvBrowserRuntimeToken], env[EnvBrowserRuntimeTokenStdin])
+	}
+}
+
+func TestRuntimeEnvPinsRunFileForHookCallbacks(t *testing.T) {
+	manager := &Manager{
+		dataDir:    "/data",
+		runFile:    "/profiles/test/running.json",
+		executable: func() (string, error) { return filepath.Join("/opt", "kennel", "kennel"), nil },
+		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	env := manager.runtimeEnv("mer-1", "mer", "", map[string]string{
+		EnvRunFile: "/project/cannot-override.json",
+	})
+	if got := env[EnvRunFile]; got != manager.runFile {
+		t.Fatalf("%s = %q, want %q", EnvRunFile, got, manager.runFile)
 	}
 }
 
@@ -219,5 +241,43 @@ func TestRunPostCreate(t *testing.T) {
 	// A failing command surfaces an error.
 	if err := runPostCreate(context.Background(), workspace, []string{"exit 3"}); err == nil {
 		t.Fatal("expected error from failing post-create command")
+	}
+}
+
+func TestSuperviseGovernedAgentIssuesLaunchBoundCapability(t *testing.T) {
+	manager := &Manager{
+		supervisorCapabilities: fixedSupervisorCapability("supervisor-token"),
+		executable:             func() (string, error) { return "/opt/kennel", nil },
+		newLaunchID:            func() string { return "launch-1" },
+	}
+	env := map[string]string{}
+	argv, launchID, verifier, err := manager.superviseAgentProcess(&codex.Plugin{}, "session-1", env, []string{"codex", "exec"}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if launchID != "launch-1" || verifier != "supervisor-verifier-1" {
+		t.Fatalf("launch=%q verifier=%q", launchID, verifier)
+	}
+	if env[EnvSupervisorCapability] != "supervisor-token" {
+		t.Fatalf("supervisor capability = %q", env[EnvSupervisorCapability])
+	}
+	if len(argv) < 2 || argv[0] != "/opt/kennel" {
+		t.Fatalf("supervised argv = %#v", argv)
+	}
+}
+
+func TestSuperviseOrdinaryAgentDoesNotIssueTrustedExitCapability(t *testing.T) {
+	manager := &Manager{
+		supervisorCapabilities: fixedSupervisorCapability("supervisor-token"),
+		executable:             func() (string, error) { return "/opt/kennel", nil },
+		newLaunchID:            func() string { return "launch-1" },
+	}
+	env := map[string]string{}
+	_, _, verifier, err := manager.superviseAgentProcess(&codex.Plugin{}, "session-1", env, []string{"codex"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verifier != "" || env[EnvSupervisorCapability] != "" {
+		t.Fatalf("ordinary session received trusted-exit capability verifier=%q token=%q", verifier, env[EnvSupervisorCapability])
 	}
 }

@@ -491,6 +491,120 @@ func TestFailAttemptBeforeLaunch_RollsBackAllFactsWhenTerminalizationLosesItsGua
 	}
 }
 
+func TestTerminateRunningAttemptWithObservation_AtomicallyFailsAndReleasesCustody(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "running-fail")
+	subject := domain.FenceSubjectForProject("running-fail")
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "attempt-running-fail", subject))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows, err := s.TransitionAttemptStatus(ctx, outcomeID, attempt.ID, domain.AttemptQueued, domain.AttemptRunning, time.Now().UTC()); err != nil || rows != 1 {
+		t.Fatalf("promote to running: rows=%d err=%v", rows, err)
+	}
+
+	obs, applied, err := s.TerminateRunningAttemptWithObservation(ctx, ports.AttemptRunningTermination{
+		OutcomeID: outcomeID, AttemptID: attempt.ID, TargetStatus: domain.AttemptFailed,
+		ObservationKind: domain.ObservationProviderExit, ObservationPayload: `{"exitCode":17}`,
+		ReleaseReason: "governed_provider_process_failed", At: time.Unix(400, 0).UTC(),
+	})
+	if err != nil || !applied {
+		t.Fatalf("terminate running attempt: applied=%v err=%v", applied, err)
+	}
+	if obs.AttemptID != attempt.ID || obs.Kind != domain.ObservationProviderExit {
+		t.Fatalf("observation = %+v, want provider-exit observation for %s", obs, attempt.ID)
+	}
+	stored, found, err := s.GetAttempt(ctx, outcomeID, attempt.ID)
+	if err != nil || !found || stored.Status != domain.AttemptFailed {
+		t.Fatalf("attempt = %+v found=%v err=%v, want failed", stored, found, err)
+	}
+	if _, open, err := s.OpenFenceForSubject(ctx, subject); err != nil || open {
+		t.Fatalf("fence open=%v err=%v, want released", open, err)
+	}
+	observations, err := s.ListAttemptObservations(ctx, attempt.ID)
+	if err != nil || len(observations) != 1 {
+		t.Fatalf("observations = %+v err=%v, want exactly one", observations, err)
+	}
+}
+
+// TestTerminateRunningAttemptWithObservation_ReconciledLeavesCustodyUntouched
+// covers the unclassified branch: an empty ReleaseReason must never touch
+// custody, even though the attempt still terminalizes and records its
+// observation.
+func TestTerminateRunningAttemptWithObservation_ReconciledLeavesCustodyUntouched(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "running-reconcile")
+	subject := domain.FenceSubjectForProject("running-reconcile")
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "attempt-running-reconcile", subject))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows, err := s.TransitionAttemptStatus(ctx, outcomeID, attempt.ID, domain.AttemptQueued, domain.AttemptRunning, time.Now().UTC()); err != nil || rows != 1 {
+		t.Fatalf("promote to running: rows=%d err=%v", rows, err)
+	}
+
+	_, applied, err := s.TerminateRunningAttemptWithObservation(ctx, ports.AttemptRunningTermination{
+		OutcomeID: outcomeID, AttemptID: attempt.ID, TargetStatus: domain.AttemptReconciled,
+		ObservationKind: domain.ObservationProviderExit, ObservationPayload: `{}`, At: time.Unix(500, 0).UTC(),
+	})
+	if err != nil || !applied {
+		t.Fatalf("terminate running attempt: applied=%v err=%v", applied, err)
+	}
+	stored, found, err := s.GetAttempt(ctx, outcomeID, attempt.ID)
+	if err != nil || !found || stored.Status != domain.AttemptReconciled {
+		t.Fatalf("attempt = %+v found=%v err=%v, want reconciled", stored, found, err)
+	}
+	if fence, open, err := s.OpenFenceForSubject(ctx, subject); err != nil || !open || fence.AttemptID != attempt.ID {
+		t.Fatalf("fence = %+v open=%v err=%v, want custody still held for unclassified reconciliation", fence, open, err)
+	}
+}
+
+// TestTerminateRunningAttemptWithObservation_NoOpWhenAlreadyMoved covers the
+// concurrent-mover case: an attempt no longer Running (e.g. a competing
+// reconciler already committed) must produce no observation and no custody
+// change, and must not surface as an error — the caller's next tick observes
+// whatever the durable winner left behind.
+func TestTerminateRunningAttemptWithObservation_NoOpWhenAlreadyMoved(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "running-noop")
+	subject := domain.FenceSubjectForProject("running-noop")
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "attempt-running-noop", subject))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Still Queued, never promoted to Running: TerminateRunningAttemptWithObservation
+	// only ever matches a Running row.
+
+	obs, applied, err := s.TerminateRunningAttemptWithObservation(ctx, ports.AttemptRunningTermination{
+		OutcomeID: outcomeID, AttemptID: attempt.ID, TargetStatus: domain.AttemptFailed,
+		ObservationKind: domain.ObservationProviderExit, ObservationPayload: `{}`,
+		ReleaseReason: "governed_provider_process_failed", At: time.Unix(600, 0).UTC(),
+	})
+	if err != nil {
+		t.Fatalf("no-op must not error: %v", err)
+	}
+	if applied {
+		t.Fatal("applied = true, want false: attempt was never running")
+	}
+	if obs.ID != "" {
+		t.Fatalf("observation = %+v, want zero value", obs)
+	}
+	stored, found, err := s.GetAttempt(ctx, outcomeID, attempt.ID)
+	if err != nil || !found || stored.Status != domain.AttemptQueued {
+		t.Fatalf("attempt = %+v found=%v err=%v, want untouched queued", stored, found, err)
+	}
+	if fence, open, err := s.OpenFenceForSubject(ctx, subject); err != nil || !open || fence.AttemptID != attempt.ID {
+		t.Fatalf("fence = %+v open=%v err=%v, want untouched custody", fence, open, err)
+	}
+	observations, err := s.ListAttemptObservations(ctx, attempt.ID)
+	if err != nil || len(observations) != 0 {
+		t.Fatalf("observations = %+v err=%v, want none", observations, err)
+	}
+}
+
 // TestAttemptStore_FenceLeaseRenewal pins the renewable-lease facts: renewal
 // refreshes only OPEN fences for the custodian, and a released fence freezes
 // forever (trigger-refused).

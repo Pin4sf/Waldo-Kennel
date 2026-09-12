@@ -52,6 +52,7 @@ import (
 	waldovc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/waldoconversation"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/skillassets"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/supervisorcap"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/terminal"
 )
 
@@ -85,6 +86,7 @@ func Run() error {
 		}
 	}
 	browserAuthority := browsersvc.NewAuthority()
+	supervisorAuthority := supervisorcap.NewAuthority()
 	browserBroker := browserruntime.New(log, browserRuntimeToken)
 
 	// Fail fast only if a daemon is genuinely still serving the recorded port.
@@ -189,7 +191,7 @@ func Run() error {
 		return fmt.Errorf("wire agent resolver: %w", err)
 	}
 
-	lcStack := startLifecycle(ctx, store, runtimeAdapter, lifecycleMessenger, notificationWriter, telemetrySink, agents, log)
+	lcStack := startLifecycle(ctx, store, runtimeAdapter, lifecycleMessenger, notificationWriter, telemetrySink, agents, supervisorAuthority, log)
 
 	// Wire the controller-facing session service over the same store + LCM, the
 	// selected runtime, routed git/scratch workspaces, the per-session agent
@@ -253,7 +255,7 @@ func Run() error {
 		NewID:    uuid.NewString,
 	})
 
-	sessionSvc, reviewSvc, sessMgr, err := startSession(ctx, cfg, runtimeAdapter, store, lcStack.LCM, messenger, telemetrySink, agents, managedPreview, browserBroker, browserAuthority, chatLauncher{svc: chatSvc}, settingsSvc, log)
+	sessionSvc, reviewSvc, sessMgr, err := startSession(ctx, cfg, runtimeAdapter, store, lcStack.LCM, messenger, telemetrySink, agents, managedPreview, browserBroker, browserAuthority, supervisorAuthority, chatLauncher{svc: chatSvc}, settingsSvc, log)
 	if err != nil {
 		stop()
 		lcStack.Stop()
@@ -442,6 +444,7 @@ func Run() error {
 	}
 	outcomeSvc := outcomevc.New(store, nil).
 		WithPlanning(intelligenceProvider, agentSvc).
+		WithRepositoryContextLimits(settingsSvc).
 		WithExecution(attempts, store).
 		WithAttemptRetainer(attempts).
 		WithCheckRunner(attemptChecks, store).
@@ -486,7 +489,9 @@ func Run() error {
 	// before the user approves a Plan. The reaper is retained only so historical
 	// interrupted session-backed intake can be cleaned up during compatibility
 	// recovery; the canonical analyzer itself never spawns one.
-	intakeAnalyzer := intelligencesvc.NewIntakeAnalyzer(intelligenceProvider, store, nil).WithRepositoryContextSource(store)
+	intakeAnalyzer := intelligencesvc.NewIntakeAnalyzer(intelligenceProvider, store, nil).
+		WithRepositoryContextSource(store).
+		WithRepositoryContextLimits(settingsSvc)
 	intakeSvc := intakevc.New(store, intakeAnalyzer, nil).WithAnalystSessionReaper(reaper)
 	// Order matters. Expiry runs FIRST: it closes asks whose deadline passed
 	// while the daemon was down and returns their intakes to a retryable
@@ -550,6 +555,7 @@ func Run() error {
 		CDC:                 store,
 		Events:              cdcPipe.Broadcaster,
 		Activity:            lcStack.LCM,
+		SupervisedExits:     lcStack.LCM,
 		UsageHooks:          usageCollector,
 		UsageSummary:        usagesvc.NewSummaryReader(store),
 		Telemetry:           telemetrySink,

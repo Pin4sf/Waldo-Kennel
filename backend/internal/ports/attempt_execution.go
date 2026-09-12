@@ -36,8 +36,9 @@ type AttemptSpawnRequest struct {
 // Empty EffectiveModel is valid for provider-default runtimes that do not
 // expose the selected model.
 type AttemptSpawnResult struct {
-	Session        domain.Session
-	EffectiveModel string
+	Session            domain.Session
+	EffectiveModel     string
+	CompletionBoundary domain.AttemptCompletionBoundary
 }
 
 // AttemptSessionSpawner is the narrow boundary between governed Attempt

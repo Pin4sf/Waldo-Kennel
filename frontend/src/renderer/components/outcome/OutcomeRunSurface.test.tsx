@@ -225,6 +225,22 @@ describe("OutcomeRunSurface", () => {
 		expect(screen.queryByText(/codex/i)).toBeNull();
 	});
 
+	it("shows only the execution graph before the Attempt lineage, without repeating Plan detail", async () => {
+		getMock.mockImplementation((url: string) => {
+			if (url === "/api/v1/outcomes/{outcomeId}/plans/{planId}/schedule") return Promise.resolve({ data: scheduleEnvelope(), error: undefined });
+			if (url === "/api/v1/outcomes/{outcomeId}/plan") return Promise.resolve({ data: planEnvelope("approved"), error: undefined });
+			if (url === "/api/v1/outcomes/{outcomeId}/attempts") return Promise.resolve({ data: { attempts: [attemptEnvelope().attempt] }, error: undefined });
+			return Promise.resolve({ data: undefined, error: { code: "NOT_FOUND", message: url } });
+		});
+		renderSurface();
+
+		const schedule = await screen.findByTestId("outcome-run-schedule");
+		expect(within(schedule).getByTestId("mission-work-unit-graph")).toBeInTheDocument();
+		expect(within(schedule).queryByRole("button", { name: "Table" })).not.toBeInTheDocument();
+		expect(within(schedule).queryByTestId("mission-unit-detail")).not.toBeInTheDocument();
+		expect(screen.getByTestId("outcome-run-board")).toBeInTheDocument();
+	});
+
 	it("distinguishes unconfirmed from dead and routes contain/reconcile through recovery", async () => {
 		const user = userEvent.setup();
 		getMock.mockImplementation((url: string) => {
@@ -341,6 +357,9 @@ describe("OutcomeRunSurface", () => {
 		expect(card.textContent).toMatch(/not final acceptance|nicht die endgültige|nunca es la aceptación|n'est jamais|最終受入では|최종 승인이 아닙니다|não é a aceitação|绝不是最终验收/i);
 		// No success badge for an ended-unclassified attempt.
 		expect(screen.getByTestId("outcome-run-status").textContent).not.toMatch(/succeeded|erfolgreich|exitoso|réussie|成功|성공|bem-sucedida/);
+		// The daemon says a replacement requires owner authorization, so the
+		// same detail that explains the blocker must expose that exact action.
+		expect(screen.getByTestId("outcome-run-replace")).toBeInTheDocument();
 	});
 
 	it("offers replacement for a lost attempt through the recovery route", async () => {

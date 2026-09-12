@@ -85,6 +85,9 @@ type AppSetting struct {
 	ReasoningGeneration              int64
 	ReasoningVerifiedGeneration      int64
 	ReasoningVerificationFingerprint string
+	RepositoryContextMaxFiles        sql.NullInt64
+	RepositoryContextMaxBytes        sql.NullInt64
+	RepositoryContextMaxVisited      sql.NullInt64
 }
 
 type Attempt struct {
@@ -946,45 +949,49 @@ type ReviewRun struct {
 }
 
 type Session struct {
-	ID                        domain.SessionID
-	ProjectID                 domain.ProjectID
-	Num                       int64
-	IssueID                   domain.IssueID
-	Kind                      domain.SessionKind
-	Harness                   domain.AgentHarness
-	ActivityState             domain.ActivityState
-	ActivityLastAt            time.Time
-	IsTerminated              bool
-	Branch                    string
-	WorkspacePath             string
-	RuntimeHandleID           string
-	AgentSessionID            string
-	Prompt                    string
-	CreatedAt                 time.Time
-	UpdatedAt                 time.Time
-	DisplayName               string
-	FirstSignalAt             sql.NullTime
-	PreviewURL                string
-	PreviewRevision           int64
-	CleanupGeneration         int64
-	RuntimeLaunchID           string
-	WorkspaceRepoPath         string
-	TerminateOnPRMerge        bool
-	DiffBaseSha               string
-	DiffBaseRef               string
-	ReviewerHarness           domain.ReviewerHarness
-	IsPinned                  bool
-	PinnedAt                  sql.NullTime
-	SessionMode               domain.SessionMode
-	ProviderConversationID    string
-	ControllerGeneration      string
-	BrowserCapabilityVerifier string
-	AutoInjectReview          bool
-	LatestUserPrompt          string
-	LatestAssistantUpdate     string
-	NativeTranscriptPath      string
-	AutoInjectCI              bool
-	AutoReviewEnabled         bool
+	ID                            domain.SessionID
+	ProjectID                     domain.ProjectID
+	Num                           int64
+	IssueID                       domain.IssueID
+	Kind                          domain.SessionKind
+	Harness                       domain.AgentHarness
+	ActivityState                 domain.ActivityState
+	ActivityLastAt                time.Time
+	IsTerminated                  bool
+	Branch                        string
+	WorkspacePath                 string
+	RuntimeHandleID               string
+	AgentSessionID                string
+	Prompt                        string
+	CreatedAt                     time.Time
+	UpdatedAt                     time.Time
+	DisplayName                   string
+	FirstSignalAt                 sql.NullTime
+	PreviewURL                    string
+	PreviewRevision               int64
+	CleanupGeneration             int64
+	RuntimeLaunchID               string
+	WorkspaceRepoPath             string
+	TerminateOnPRMerge            bool
+	DiffBaseSha                   string
+	DiffBaseRef                   string
+	ReviewerHarness               domain.ReviewerHarness
+	IsPinned                      bool
+	PinnedAt                      sql.NullTime
+	SessionMode                   domain.SessionMode
+	ProviderConversationID        string
+	ControllerGeneration          string
+	BrowserCapabilityVerifier     string
+	AutoInjectReview              bool
+	LatestUserPrompt              string
+	LatestAssistantUpdate         string
+	NativeTranscriptPath          string
+	AutoInjectCI                  bool
+	AutoReviewEnabled             bool
+	GovernedExecutionPolicyDigest string
+	SupervisorCapabilityVerifier  string
+	SupervisedProcessExitCode     sql.NullInt64
+	SupervisedProcessExitReason   string
 }
 
 type SessionCleanupFact struct {

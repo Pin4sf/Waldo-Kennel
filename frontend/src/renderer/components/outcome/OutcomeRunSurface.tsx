@@ -162,8 +162,7 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked =
 				<section className="max-w-2xl rounded-group hairline border-border bg-card px-4.5 py-3.5" data-testid="outcome-run-schedule">
 					<MissionPlanView
 						criterionText={criterionText}
-							attempts={attempts}
-							onOpenAttempt={engageAttempt}
+						graphOnly
 							schedule={schedule}
 						workUnits={schedule.workUnits.map((entry) => entry.workUnit)}
 					/>
@@ -381,6 +380,17 @@ function CurrentAttemptCard({
 							size="sm"
 						>
 							{t("outcome.run.ctaReconcile")}
+						</Button>
+					)}
+					{attempt.status !== "running" && (
+						<Button
+							className="mt-2"
+							data-testid="outcome-run-replace"
+							disabled={pending}
+							onClick={() => onRecover("replace", false)}
+							size="sm"
+						>
+							{t("outcome.run.ctaReplace")}
 						</Button>
 					)}
 				</section>

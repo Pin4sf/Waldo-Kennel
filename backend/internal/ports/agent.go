@@ -242,6 +242,12 @@ type AgentExitDetector interface {
 	ExitDetectionMode() AgentExitDetectionMode
 }
 
+// GovernedCompletionBoundaryProvider declares the conclusive provider fact
+// used only for approved WorkUnit execution. Ordinary sessions ignore it.
+type GovernedCompletionBoundaryProvider interface {
+	GovernedCompletionBoundary() domain.AttemptCompletionBoundary
+}
+
 // AgentPromptReadinessProvider is an optional capability for interactive
 // adapters that receive their first task after startup. It lets Kennel wait until a
 // terminal UI is ready before injecting text through the runtime. When the

@@ -21,6 +21,7 @@ const sandboxExecPath = "/usr/bin/sandbox-exec"
 // It matches the PATH the process is given, so the name that was allowed is the
 // binary that runs.
 const checkPATH = "/usr/local/bin:/usr/bin:/bin"
+const developerToolPATH = "/Applications/Xcode.app/Contents/Developer/usr/bin:/Library/Developer/CommandLineTools/usr/bin:"
 
 func platformEnforcement(policy domain.AttemptExecutionPolicy) (Enforcement, error) {
 	info, err := os.Stat(sandboxExecPath)
@@ -52,7 +53,15 @@ func (s seatbelt) Name() string {
 func (s seatbelt) Command(ctx context.Context, req Request, root string) (*exec.Cmd, error) {
 	// Resolve the allowed name against the same constrained PATH the check will
 	// run with, so the profile confines the binary that actually executes.
-	resolved, err := lookPathIn(req.Argv[0], checkPATH)
+	path := checkPATH
+	// /usr/bin/python3 is an xcrun shim that tries to create a cache outside
+	// the authorized workspace before the approved script starts. Prefer the
+	// installed developer runtime for this one executable name so the same
+	// Python runs without widening write authority for the check.
+	if req.Argv[0] == "python3" {
+		path = developerToolPATH + path
+	}
+	resolved, err := lookPathIn(req.Argv[0], path)
 	if err != nil {
 		return nil, fmt.Errorf("%w: executable %q is not on the check path", ErrInvalidCommand, req.Argv[0])
 	}
@@ -60,6 +69,7 @@ func (s seatbelt) Command(ctx context.Context, req Request, root string) (*exec.
 	cmd := exec.CommandContext(ctx, sandboxExecPath, argv...)
 	cmd.Dir = root
 	cmd.Env = safeEnvironment(req.Environment)
+	cmd.Env[0] = "PATH=" + path
 	return cmd, nil
 }
 
@@ -73,7 +83,12 @@ func (s seatbelt) profile() string {
 		"(allow file-read-xattr)",
 		`(allow file-read* (literal "/"))`,
 		`(allow file-read-data (subpath (param "WORKSPACE")))`,
-		`(allow file-read* (subpath "/System") (subpath "/usr/lib") (subpath "/usr/bin") (subpath "/bin") (subpath "/usr/share") (subpath "/dev") (subpath "/private/preboot") (subpath "/private/var/db/dyld") (subpath "/Library/Apple"))`,
+		// Apple's /usr/bin/python3 is an xcrun shim on current macOS and loads
+		// its signed runtime from the selected system developer installation.
+		// These roots are executable runtime resources, not owner workspace
+		// data; without them an approved Python check is reported as a false
+		// work failure before its script starts.
+		`(allow file-read* (subpath "/System") (subpath "/usr/lib") (subpath "/usr/bin") (subpath "/bin") (subpath "/usr/share") (subpath "/dev") (subpath "/private/preboot") (subpath "/private/var/db/dyld") (subpath "/Library/Apple") (subpath "/Library/Developer/CommandLineTools") (subpath "/Applications/Xcode.app/Contents/Developer"))`,
 		"(allow process-exec)",
 		"(allow process-fork)",
 		"(allow sysctl-read)",

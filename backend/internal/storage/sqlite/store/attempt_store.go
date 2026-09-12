@@ -420,6 +420,83 @@ func (s *Store) FailAttemptBeforeLaunch(ctx context.Context, in ports.AttemptPre
 	return obs, nil
 }
 
+// TerminateRunningAttemptWithObservation atomically classifies a Running
+// attempt the reconcile loop found durably terminated: the classification
+// observation, the Running-to-target transition, and (when ReleaseReason is
+// set) custody release either all commit or all roll back together. This
+// closes the gap where a crash or later write failure between the status
+// flip and custody release could strand a terminal Attempt's workspace
+// fence, since normal liveness scanning only revisits Running attempts.
+//
+// A false second return means the attempt had already moved off Running
+// (transitioned concurrently, or moved by an earlier retry that committed):
+// nothing was written, and the caller should treat this tick as a no-op —
+// the next pass observes whatever the durable winner left behind.
+func (s *Store) TerminateRunningAttemptWithObservation(ctx context.Context, in ports.AttemptRunningTermination) (domain.AttemptObservation, bool, error) {
+	if in.OutcomeID.IsZero() || in.AttemptID.IsZero() || strings.TrimSpace(string(in.TargetStatus)) == "" ||
+		strings.TrimSpace(in.ObservationKind) == "" || in.At.IsZero() {
+		return domain.AttemptObservation{}, false, fmt.Errorf("running attempt termination requires outcome, attempt, target status, observation kind, and timestamp")
+	}
+	payload := in.ObservationPayload
+	if payload == "" {
+		payload = "{}"
+	}
+	obs := domain.AttemptObservation{ID: "obs-" + uuid.NewString(), AttemptID: in.AttemptID, Kind: in.ObservationKind, Payload: payload, CreatedAt: in.At}
+
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	tx, err := s.writeDB.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.AttemptObservation{}, false, fmt.Errorf("begin running attempt termination for %s: %w", in.AttemptID, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	txq := s.qw.WithTx(tx)
+
+	rows, err := txq.TransitionAttemptStatus(ctx, gen.TransitionAttemptStatusParams{
+		Status: in.TargetStatus, UpdatedAt: in.At, ID: in.AttemptID, OutcomeID: in.OutcomeID, Status_2: domain.AttemptRunning,
+	})
+	if err != nil {
+		return domain.AttemptObservation{}, false, fmt.Errorf("transition running attempt %s: %w", in.AttemptID, err)
+	}
+	if rows == 0 {
+		// Moved concurrently since the caller listed it as Running. Nothing to
+		// append or release: whatever committed that transition owns this
+		// Attempt's terminal facts now.
+		return domain.AttemptObservation{}, false, nil
+	}
+
+	maxSeq, err := txq.MaxAttemptObservationSeq(ctx, in.AttemptID)
+	if err != nil {
+		return domain.AttemptObservation{}, false, fmt.Errorf("max observation seq for %s: %w", in.AttemptID, err)
+	}
+	prior, ok := maxSeq.(int64)
+	if !ok {
+		return domain.AttemptObservation{}, false, fmt.Errorf("max observation seq for %s: unexpected type %T", in.AttemptID, maxSeq)
+	}
+	obs.Seq = prior + 1
+	if err := obs.Validate(); err != nil {
+		return domain.AttemptObservation{}, false, err
+	}
+	if err := txq.CreateAttemptObservation(ctx, gen.CreateAttemptObservationParams{ID: obs.ID, AttemptID: obs.AttemptID, Seq: obs.Seq, Kind: obs.Kind, Payload: obs.Payload}); err != nil {
+		return domain.AttemptObservation{}, false, fmt.Errorf("append running attempt observation for %s: %w", in.AttemptID, err)
+	}
+
+	if in.ReleaseReason != "" {
+		fenceRows, err := txq.ReleaseAttemptFence(ctx, gen.ReleaseAttemptFenceParams{ReleasedAt: sql.NullTime{Time: in.At, Valid: true}, ReleaseReason: in.ReleaseReason, AttemptID: in.AttemptID})
+		if err != nil {
+			return domain.AttemptObservation{}, false, fmt.Errorf("release fence for terminated attempt %s: %w", in.AttemptID, err)
+		}
+		// fenceRows == 0 means no open fence was held (already released, or this
+		// Attempt never held one): idempotent, not an error.
+		_ = fenceRows
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.AttemptObservation{}, false, fmt.Errorf("commit running attempt termination for %s: %w", in.AttemptID, err)
+	}
+	return obs, true, nil
+}
+
 // ListAttemptObservations loads observations for an attempt.
 func (s *Store) ListAttemptObservations(ctx context.Context, attemptID domain.AttemptID) ([]domain.AttemptObservation, error) {
 	rows, err := s.qr.ListAttemptObservationsForAttempt(ctx, attemptID)

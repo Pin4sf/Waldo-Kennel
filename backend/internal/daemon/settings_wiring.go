@@ -34,8 +34,24 @@ func (s settingsStore) GetAppSettings(ctx context.Context) (settingssvc.Snapshot
 		ReasoningGeneration:              row.ReasoningGeneration,
 		ReasoningVerifiedGeneration:      row.ReasoningVerifiedGeneration,
 		ReasoningVerificationFingerprint: row.ReasoningVerificationFingerprint,
+		RepositoryContextMaxFiles:        row.RepositoryContextMaxFiles,
+		RepositoryContextMaxBytes:        row.RepositoryContextMaxBytes,
+		RepositoryContextMaxVisited:      row.RepositoryContextMaxVisited,
 		UpdatedAt:                        row.UpdatedAt,
 	}, nil
+}
+
+func (s settingsStore) PatchRepositoryContextLimits(
+	ctx context.Context,
+	patch settingssvc.RepositoryContextLimitsPatch,
+	now time.Time,
+) error {
+	return s.store.PatchRepositoryContextLimits(ctx,
+		patch.MaxFiles.Present, patch.MaxFiles.Value,
+		patch.MaxBytes.Present, patch.MaxBytes.Value,
+		patch.MaxVisited.Present, patch.MaxVisited.Value,
+		now,
+	)
 }
 
 func (s settingsStore) SetReasoningSettings(ctx context.Context, provider, model, effort string, now time.Time) error {

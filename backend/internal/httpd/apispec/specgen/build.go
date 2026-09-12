@@ -880,6 +880,17 @@ func shellTerminalOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodPatch, path: "/api/v1/settings/repository-context", id: "updateRepositoryContextLimits", tag: "settings",
+			summary: "Configure the owner's bounds for Waldo's bounded repository-context packet",
+			reqBody: controllers.UpdateRepositoryContextLimitsRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.RepositoryContextLimitsResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodGet, path: "/api/v1/sessions/{sessionId}/conversation", id: "getSessionConversation", tag: "conversations",
 			summary:    "Read a chat session's durable conversation",
 			pathParams: []any{controllers.SessionIDParam{}, conversationSnapshotQuery{}},

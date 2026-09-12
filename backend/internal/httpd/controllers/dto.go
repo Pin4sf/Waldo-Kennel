@@ -1,8 +1,10 @@
 package controllers
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
@@ -824,6 +826,14 @@ type ClaimPRResponse struct {
 	TakenOverFrom []domain.SessionID `json:"takenOverFrom"`
 }
 
+// SupervisedProcessExitRequest is the authenticated process exit fact a
+// Kennel-supervised provider process wrapper reports for the current runtime
+// generation.
+type SupervisedProcessExitRequest struct {
+	ExitCode *int   `json:"exitCode" description:"Exact provider process exit code when available."`
+	Reason   string `json:"reason" description:"Supervisor exit reason."`
+}
+
 // SetActivityRequest is the body of POST /api/v1/sessions/{sessionId}/activity.
 // Event/ToolName/ToolUseID are optional correlation facts: which Kennel hook
 // sub-command produced the state and, for tool-use hooks, which tool call it
@@ -833,16 +843,17 @@ type ClaimPRResponse struct {
 // state-only semantics.
 // AgentSessionID may arrive without State on metadata-only SessionStart hooks.
 type SetActivityRequest struct {
-	State                 string             `json:"state,omitempty" enum:"active,idle,waiting_input,blocked,exited" description:"Agent activity state reported by an agent hook. Optional for metadata-only hooks."`
-	Event                 string             `json:"event,omitempty" description:"Kennel hook sub-command that produced this state (e.g. post-tool-use)."`
-	ToolName              string             `json:"toolName,omitempty" description:"Native tool name, for tool-use hook events."`
-	ToolUseID             string             `json:"toolUseId,omitempty" description:"Native tool-use id, for tool-use hook events."`
-	AgentSessionID        string             `json:"agentSessionId,omitempty" description:"Native agent session identifier used to resume its transcript."`
-	LatestUserPrompt      string             `json:"latestUserPrompt,omitempty" maxLength:"16384" description:"Latest real user prompt exposed by the provider hook."`
-	LatestAssistantUpdate string             `json:"latestAssistantUpdate,omitempty" maxLength:"16384" description:"Latest assistant update exposed by the provider hook."`
-	TranscriptPath        string             `json:"transcriptPath,omitempty" maxLength:"4096" description:"Read-only provider-native transcript path exposed by the hook."`
-	LaunchID              string             `json:"launchId,omitempty" description:"Kennel process generation that produced the signal."`
-	Usage                 *UsageHookMetadata `json:"usage,omitempty" description:"Provider transcript metadata used by the local usage pipeline."`
+	State                 string                        `json:"state,omitempty" enum:"active,idle,waiting_input,blocked,exited" description:"Agent activity state reported by an agent hook. Optional for metadata-only hooks."`
+	Event                 string                        `json:"event,omitempty" description:"Kennel hook sub-command that produced this state (e.g. post-tool-use)."`
+	ToolName              string                        `json:"toolName,omitempty" description:"Native tool name, for tool-use hook events."`
+	ToolUseID             string                        `json:"toolUseId,omitempty" description:"Native tool-use id, for tool-use hook events."`
+	AgentSessionID        string                        `json:"agentSessionId,omitempty" description:"Native agent session identifier used to resume its transcript."`
+	LatestUserPrompt      string                        `json:"latestUserPrompt,omitempty" maxLength:"16384" description:"Latest real user prompt exposed by the provider hook."`
+	LatestAssistantUpdate string                        `json:"latestAssistantUpdate,omitempty" maxLength:"16384" description:"Latest assistant update exposed by the provider hook."`
+	TranscriptPath        string                        `json:"transcriptPath,omitempty" maxLength:"4096" description:"Read-only provider-native transcript path exposed by the hook."`
+	LaunchID              string                        `json:"launchId,omitempty" description:"Kennel process generation that produced the signal."`
+	ProcessExit           *SupervisedProcessExitRequest `json:"processExit,omitempty" description:"Authenticated process exit observation from Kennels supervisor."`
+	Usage                 *UsageHookMetadata            `json:"usage,omitempty" description:"Provider transcript metadata used by the local usage pipeline."`
 }
 
 // UsageHookMetadata is the transcript metadata carried by supported Claude
@@ -1785,8 +1796,9 @@ type SettingsResponse struct {
 	DefaultSessionMode string `json:"defaultSessionMode" enum:"chat,tui"`
 	// ChatHarnesses are the agents that can run in chat mode today. Empty means
 	// chat cannot be used yet, which a client should say plainly.
-	ChatHarnesses []string          `json:"chatHarnesses"`
-	Reasoning     ReasoningResponse `json:"reasoning"`
+	ChatHarnesses     []string                        `json:"chatHarnesses"`
+	Reasoning         ReasoningResponse               `json:"reasoning"`
+	RepositoryContext RepositoryContextLimitsResponse `json:"repositoryContext"`
 }
 
 // ReasoningResponse reports reasoning readiness without returning a secret.
@@ -1824,6 +1836,76 @@ type UpdateReasoningRequest struct {
 // UpdateSessionInterfaceRequest changes the default interface for new sessions.
 type UpdateSessionInterfaceRequest struct {
 	DefaultSessionMode string `json:"defaultSessionMode" enum:"chat,tui"`
+}
+
+// RepositoryContextLimitsResponse reports the owner's configured bounds for
+// Waldo's bounded repository-context packet (intake analysis, planning) and
+// the effective values actually in force once Kennel's built-in defaults are
+// substituted for anything unconfigured.
+type RepositoryContextLimitsResponse struct {
+	// MaxFiles/MaxBytes/MaxVisited are the owner's raw override, or null when
+	// Kennel's built-in default is in force for that bound.
+	MaxFiles   *int64 `json:"maxFiles"`
+	MaxBytes   *int64 `json:"maxBytes"`
+	MaxVisited *int64 `json:"maxVisited"`
+	// EffectiveMaxFiles/EffectiveMaxBytes/EffectiveMaxVisited are what actually
+	// governs the next repository-context build: the override above, or
+	// Kennel's built-in default when unset. Zero means uncapped.
+	EffectiveMaxFiles   int64 `json:"effectiveMaxFiles"`
+	EffectiveMaxBytes   int64 `json:"effectiveMaxBytes"`
+	EffectiveMaxVisited int64 `json:"effectiveMaxVisited"`
+}
+
+// UpdateRepositoryContextLimitsRequest patches the owner's repository-context
+// bounds. Omitted fields are preserved, null clears an override back to the
+// built-in default, zero explicitly uncaps a bound, and a positive value sets
+// the cap. The Set flags are decoder-only presence metadata.
+type UpdateRepositoryContextLimitsRequest struct {
+	MaxFiles      *int64 `json:"maxFiles,omitempty"`
+	MaxBytes      *int64 `json:"maxBytes,omitempty"`
+	MaxVisited    *int64 `json:"maxVisited,omitempty"`
+	MaxFilesSet   bool   `json:"-"`
+	MaxBytesSet   bool   `json:"-"`
+	MaxVisitedSet bool   `json:"-"`
+}
+
+// UnmarshalJSON retains field presence because encoding/json otherwise maps
+// both an omitted pointer and an explicit null to nil. A top-level null is not
+// a PATCH object, and unknown fields are rejected instead of being ignored.
+func (r *UpdateRepositoryContextLimitsRequest) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	if fields == nil {
+		return fmt.Errorf("repository-context patch must be a JSON object")
+	}
+	*r = UpdateRepositoryContextLimitsRequest{}
+	for name, raw := range fields {
+		var target **int64
+		var present *bool
+		switch name {
+		case "maxFiles":
+			target, present = &r.MaxFiles, &r.MaxFilesSet
+		case "maxBytes":
+			target, present = &r.MaxBytes, &r.MaxBytesSet
+		case "maxVisited":
+			target, present = &r.MaxVisited, &r.MaxVisitedSet
+		default:
+			return fmt.Errorf("unknown repository-context field %q", name)
+		}
+		*present = true
+		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			*target = nil
+			continue
+		}
+		var value int64
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return fmt.Errorf("%s must be an integer or null: %w", name, err)
+		}
+		*target = &value
+	}
+	return nil
 }
 
 // capabilityNames lists the abilities a provider has, sorted so a client sees a

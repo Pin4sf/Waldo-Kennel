@@ -187,6 +187,64 @@ func TestContinueAuthorizedRuns_AdmitsEachEligibleWorkUnitOnce(t *testing.T) {
 	}
 }
 
+func TestContinueAuthorizedRuns_ReplacementDecisionMintsOneFreshAttempt(t *testing.T) {
+	h := newRunHarness(t)
+	h.mustCommand(t, domain.RunCommandStart, "rk-start")
+	ctx := context.Background()
+	if err := h.svc.ContinueAuthorizedRuns(ctx); err != nil {
+		t.Fatalf("initial continuation: %v", err)
+	}
+	attempts, err := h.store.ListAttempts(ctx, h.outcomeID)
+	if err != nil || len(attempts) != 1 {
+		t.Fatalf("initial attempts = %+v err=%v", attempts, err)
+	}
+	first := attempts[0]
+	if _, err := h.store.TransitionAttemptStatus(ctx, h.outcomeID, first.ID, domain.AttemptRunning, domain.AttemptFailed, time.Now()); err != nil {
+		t.Fatalf("record failed predecessor: %v", err)
+	}
+	// A terminal failure alone is not blanket authorization to retry forever.
+	if err := h.svc.ContinueAuthorizedRuns(ctx); err != nil {
+		t.Fatalf("continuation before replacement decision: %v", err)
+	}
+	if calls := h.spawner.spawnCalls(); calls != 1 {
+		t.Fatalf("providers launched before replacement decision = %d, want one", calls)
+	}
+	view, err := h.svc.GetRunState(ctx, h.outcomeID)
+	if err != nil {
+		t.Fatalf("run state before replacement decision: %v", err)
+	}
+	if view.State != outcome.MissionNeedsYou || view.AttentionReason != outcome.ReasonAttemptReplacementRequired {
+		t.Fatalf("run state before replacement = %s/%s, want needs_you/%s", view.State, view.AttentionReason, outcome.ReasonAttemptReplacementRequired)
+	}
+	if _, err := h.svc.RecoverAttempt(ctx, h.outcomeID, first.ID, outcome.RecoveryInput{
+		Action: outcome.RecoveryActionReplace, ConfirmProviderStopped: true,
+	}); err != nil {
+		t.Fatalf("authorize replacement: %v", err)
+	}
+	view, err = h.svc.GetRunState(ctx, h.outcomeID)
+	if err != nil {
+		t.Fatalf("run state after replacement decision: %v", err)
+	}
+	if view.State != outcome.MissionInProgress {
+		t.Fatalf("run state after replacement authorization = %s, want in_progress", view.State)
+	}
+	for tick := 0; tick < 3; tick++ {
+		if err := h.svc.ContinueAuthorizedRuns(ctx); err != nil {
+			t.Fatalf("replacement tick %d: %v", tick, err)
+		}
+	}
+	attempts, err = h.store.ListAttempts(ctx, h.outcomeID)
+	if err != nil || len(attempts) != 2 {
+		t.Fatalf("replacement attempts = %+v err=%v, want two", attempts, err)
+	}
+	if attempts[1].Number != 2 || attempts[1].RequestKey == first.RequestKey {
+		t.Fatalf("replacement = %+v, want fresh attempt #2 and replay identity", attempts[1])
+	}
+	if calls := h.spawner.spawnCalls(); calls != 2 {
+		t.Fatalf("providers launched after repeated ticks = %d, want exactly two", calls)
+	}
+}
+
 func TestContinueAuthorizedRuns_ReadinessFailureIsActionableAndNotBlindlyRetried(t *testing.T) {
 	h := newRunHarness(t)
 	h.spawner.setReadiness(ports.AgentProfileReadiness{Ready: false, Detail: "Sign in to the selected Codex profile"})

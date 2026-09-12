@@ -275,7 +275,7 @@ func TestIntelligenceClientCancellationInterruptsNamedTurn(t *testing.T) {
 	}
 }
 
-func TestIntelligenceClientDoesNotAcceptQueuedCompletionAfterCancellation(t *testing.T) {
+func TestIntelligenceClientDoesNotAcceptLateCompletionAfterCancellation(t *testing.T) {
 	d, srv := newTestDriver(t)
 	client := NewIntelligenceClient(d, IntelligenceConfig{Timeout: time.Second})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -287,10 +287,12 @@ func TestIntelligenceClientDoesNotAcceptQueuedCompletionAfterCancellation(t *tes
 	srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
 	srv.awaitResponse("turn/start")
 	cancel()
-	// Make the success frames available at the same boundary as cancellation.
-	// waitForIntelligenceTurn must re-check ctx after receiving either frame.
-	srv.push(`{"method":"item/completed","params":{"threadId":"thread-1","turnId":"turn-1","item":{"id":"msg-1","type":"agentMessage","text":"late"}}}`)
-	srv.push(`{"method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"completed","items":[]}}}`)
+	// Race late success frames against cancellation. The client may already have
+	// closed its private app-server pipe; that is an equally valid refusal of the
+	// late result and must not turn this cancellation regression into a flaky
+	// harness-write failure.
+	_ = srv.tryPush(`{"method":"item/completed","params":{"threadId":"thread-1","turnId":"turn-1","item":{"id":"msg-1","type":"agentMessage","text":"late"}}}`)
+	_ = srv.tryPush(`{"method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"completed","items":[]}}}`)
 	err := <-result
 	var failure *ports.ReasoningFailure
 	if !errors.As(err, &failure) || failure.Kind != ports.ReasoningCancelled {

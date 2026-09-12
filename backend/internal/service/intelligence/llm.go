@@ -81,19 +81,24 @@ Rules:
 Return only the structured object.`
 
 // contractSchema constrains the reply to one clarification or one proposal.
+//
+// Codex's strict structured-output mode requires every key under
+// additionalProperties:false to appear in "required" — a key that is only
+// sometimes meaningful (like "question" vs "proposal", chosen by "decision")
+// must instead be nullable (nullableObject) rather than omitted from
+// required, or the schema itself is rejected before the model ever runs.
 func contractSchema() map[string]any {
 	return map[string]any{
 		"type":                 "object",
 		"additionalProperties": false,
-		"required":             []any{"decision"},
+		"required":             []any{"decision", "question", "proposal"},
 		"properties": map[string]any{
 			"decision": map[string]any{
 				"type":        "string",
 				"enum":        []any{"ask", "propose"},
 				"description": "ask only when a material fact is missing",
 			},
-			"question": map[string]any{
-				"type":                 "object",
+			"question": nullableObject(map[string]any{
 				"additionalProperties": false,
 				"required":             []any{"question", "reason", "recommendation", "alternatives", "deferralConsequence"},
 				"properties": map[string]any{
@@ -103,11 +108,10 @@ func contractSchema() map[string]any {
 					"alternatives":        stringArray("the concrete options"),
 					"deferralConsequence": map[string]any{"type": "string", "description": "what happens if unanswered"},
 				},
-			},
-			"proposal": map[string]any{
-				"type":                 "object",
+			}),
+			"proposal": nullableObject(map[string]any{
 				"additionalProperties": false,
-				"required":             []any{"title", "desiredState", "criteria", "reviewMethod", "authorityCeiling", "stopConditions", "facet"},
+				"required":             []any{"title", "desiredState", "criteria", "reviewMethod", "constraints", "nonGoals", "authorityCeiling", "stopConditions", "assumptions", "facet"},
 				"properties": map[string]any{
 					"title":        map[string]any{"type": "string", "description": "short result-shaped name, not a task name"},
 					"desiredState": map[string]any{"type": "string", "description": "what will be true when this is done"},
@@ -136,9 +140,19 @@ func contractSchema() map[string]any {
 						"enum": []any{"software", "research", "design", "documentation", "investigation", "evaluation", "operations"},
 					},
 				},
-			},
+			}),
 		},
 	}
+}
+
+// nullableObject marks an object schema as optionally null: Codex's strict
+// mode requires the key to be listed in the parent's "required" array, but
+// the value itself may be JSON null when the field does not apply (e.g. a
+// "proposal" that is absent while "decision" chose "ask"). schema must not
+// itself set "type"; nullableObject supplies it.
+func nullableObject(schema map[string]any) map[string]any {
+	schema["type"] = []any{"object", "null"}
+	return schema
 }
 
 func authoritySchema() map[string]any {
@@ -171,7 +185,7 @@ func planSchema(aliases []string) map[string]any {
 	return map[string]any{
 		"type":                 "object",
 		"additionalProperties": false,
-		"required":             []any{"summary", "workUnits"},
+		"required":             []any{"summary", "workUnits", "assumptions", "blockers"},
 		"properties": map[string]any{
 			"summary": map[string]any{"type": "string", "description": "one line on how this plan reaches the outcome"},
 			"workUnits": map[string]any{
@@ -181,7 +195,7 @@ func planSchema(aliases []string) map[string]any {
 				"items": map[string]any{
 					"type":                 "object",
 					"additionalProperties": false,
-					"required":             []any{"key", "title", "intent", "outputSummary", "criteriaCovered", "checkCommands"},
+					"required":             []any{"key", "title", "intent", "outputSummary", "criteriaCovered", "dependsOn", "evidenceIdeas", "checkCommands"},
 					"properties": map[string]any{
 						"key":   map[string]any{"type": "string", "description": "stable short id such as W1"},
 						"title": map[string]any{"type": "string"},
@@ -220,12 +234,11 @@ func planningDiscussionSchema(aliases []string) map[string]any {
 	return map[string]any{
 		"type":                 "object",
 		"additionalProperties": false,
-		"required":             []any{"decision", "message"},
+		"required":             []any{"decision", "message", "clarification", "contractChange", "proposal"},
 		"properties": map[string]any{
 			"decision": map[string]any{"type": "string", "enum": []any{"clarification", "contract_change_proposal", "plan_proposal"}},
 			"message":  map[string]any{"type": "string", "description": "concise owner-facing explanation"},
-			"clarification": map[string]any{
-				"type":                 "object",
+			"clarification": nullableObject(map[string]any{
 				"additionalProperties": false,
 				"required":             []any{"question", "reason", "recommendation", "alternatives"},
 				"properties": map[string]any{
@@ -234,9 +247,8 @@ func planningDiscussionSchema(aliases []string) map[string]any {
 					"recommendation": map[string]any{"type": "string"},
 					"alternatives":   stringArray("short concrete answer choices"),
 				},
-			},
-			"contractChange": map[string]any{
-				"type":                 "object",
+			}),
+			"contractChange": nullableObject(map[string]any{
 				"additionalProperties": false,
 				"required":             []any{"summary", "changedFields"},
 				"properties": map[string]any{
@@ -249,8 +261,8 @@ func planningDiscussionSchema(aliases []string) map[string]any {
 						}},
 					},
 				},
-			},
-			"proposal": planSchema(aliases),
+			}),
+			"proposal": nullableObject(planSchema(aliases)),
 		},
 	}
 }

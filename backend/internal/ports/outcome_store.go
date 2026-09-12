@@ -119,6 +119,7 @@ type OutcomeStore interface {
 	FindAttemptByIdempotencyKey(context.Context, string) (domain.Attempt, bool, error)
 	CreateAttemptWithFence(context.Context, AttemptAdmission) (domain.Attempt, error)
 	FailAttemptBeforeLaunch(context.Context, AttemptPrelaunchFailure) (domain.AttemptObservation, error)
+	TerminateRunningAttemptWithObservation(context.Context, AttemptRunningTermination) (domain.AttemptObservation, bool, error)
 	GetAttempt(context.Context, domain.OutcomeID, domain.AttemptID) (domain.Attempt, bool, error)
 	ListAttempts(context.Context, domain.OutcomeID) ([]domain.Attempt, error)
 	TransitionAttemptStatus(context.Context, domain.OutcomeID, domain.AttemptID, domain.AttemptStatus, domain.AttemptStatus, time.Time) (int64, error)
@@ -141,6 +142,26 @@ type OutcomeStore interface {
 type AttemptPrelaunchFailure struct {
 	OutcomeID          domain.OutcomeID
 	AttemptID          domain.AttemptID
+	ObservationKind    string
+	ObservationPayload string
+	ReleaseReason      string
+	At                 time.Time
+}
+
+// AttemptRunningTermination is the single atomic store operation for the
+// reconcile loop's liveness classification of a Running attempt: append the
+// classification observation, transition Running to TargetStatus, and (only
+// when ReleaseReason is non-empty) release custody, all in one transaction.
+// A crash or later write failure can therefore never leave a terminal
+// Attempt holding an open workspace fence — either everything commits, or
+// nothing does and the Attempt is still Running, still visited by the next
+// liveness pass, and the whole operation is retried from scratch. Leave
+// ReleaseReason empty for an unclassified reconciliation (target
+// AttemptReconciled) that must not touch custody.
+type AttemptRunningTermination struct {
+	OutcomeID          domain.OutcomeID
+	AttemptID          domain.AttemptID
+	TargetStatus       domain.AttemptStatus
 	ObservationKind    string
 	ObservationPayload string
 	ReleaseReason      string

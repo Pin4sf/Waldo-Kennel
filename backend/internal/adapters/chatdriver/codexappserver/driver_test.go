@@ -59,9 +59,17 @@ func (s *scriptedServer) respondTo(method, resultJSON string) {
 
 func (s *scriptedServer) push(raw string) {
 	s.t.Helper()
-	if _, err := io.WriteString(s.toClient, raw+"\n"); err != nil {
+	if err := s.tryPush(raw); err != nil {
 		s.t.Fatalf("push: %v", err)
 	}
+}
+
+// tryPush is used only when a test deliberately races a provider frame with
+// client shutdown. A closed pipe is then one valid outcome of the boundary,
+// rather than a test-harness failure that masks the client's result.
+func (s *scriptedServer) tryPush(raw string) error {
+	_, err := io.WriteString(s.toClient, raw+"\n")
+	return err
 }
 
 // reply scripts the result for a method. Guarded because the server goroutine
