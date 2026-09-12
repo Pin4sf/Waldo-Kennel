@@ -882,6 +882,7 @@ func TestStartPinsWorkspaceWriteBoundaryOnEveryTurn(t *testing.T) {
 			{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
 			{ID: "write", Name: domain.CapabilityWorktreeWrite, Scope: "worktree/*"},
 		},
+		ApprovedChecks: []domain.ApprovedCheck{{ID: "check-1", CriterionID: "criterion-1", Argv: []string{"go", "test", "./..."}, TimeoutSeconds: 60}},
 	}
 	conv, err := d.Start(context.Background(), ports.ChatStartConfig{WorkspacePath: "/tmp/ws", ExecutionPolicy: &policy})
 	if err != nil {

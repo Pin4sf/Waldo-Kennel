@@ -29,6 +29,9 @@ func SandboxFor(policy domain.AttemptExecutionPolicy) (string, error) {
 	case domain.CapabilityWorktreeRead:
 		return "read-only", nil
 	case domain.CapabilityWorktreeExec + "," + domain.CapabilityWorktreeRead + "," + domain.CapabilityWorktreeWrite:
+		if len(policy.ApprovedChecks) == 0 {
+			return "", unsupported(domain.CapabilityWorktreeExec, "execution was granted without an exact approved check vector")
+		}
 		return "workspace-write", nil
 	default:
 		return "", unsupported(strings.Join(policy.RequiredCapabilities, ","), "Codex cannot represent this exact capability set without granting a broader sandbox")

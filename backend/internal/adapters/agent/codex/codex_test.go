@@ -607,12 +607,13 @@ func TestGetLaunchCommandMapsAttemptExecutionPolicy(t *testing.T) {
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		Permissions:     ports.PermissionModeBypassPermissions,
 		ExecutionPolicy: &policy,
+		WorkspacePath:   t.TempDir(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !containsSubsequence(cmd, []string{"--sandbox", "read-only"}) {
-		t.Fatalf("command %#v missing read-only sandbox", cmd)
+		t.Fatalf("command %#v missing governed read-only sandbox", cmd)
 	}
 	if contains(cmd, "--dangerously-bypass-approvals-and-sandbox") {
 		t.Fatalf("policy launch retained broad bypass: %#v", cmd)
@@ -648,6 +649,17 @@ func TestValidateExecutionPolicyRejectsWideningCapabilitySet(t *testing.T) {
 		t.Fatal("execute-without-write policy was accepted")
 	} else if !errors.Is(err, ports.ErrExecutionPolicyUnsupported) {
 		t.Fatalf("err = %v, want typed unsupported policy", err)
+	}
+}
+
+func TestValidateExecutionPolicyRejectsExecWithoutFrozenCheck(t *testing.T) {
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1, RunBriefCoreDigest: "brief",
+		RequiredCapabilities: []string{domain.CapabilityWorktreeExec, domain.CapabilityWorktreeRead, domain.CapabilityWorktreeWrite},
+		Grants:               []domain.CapabilityGrant{{ID: "exec", Name: domain.CapabilityWorktreeExec, Scope: "worktree/*"}, {ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"}, {ID: "write", Name: domain.CapabilityWorktreeWrite, Scope: "worktree/*"}},
+	}
+	if err := (&Plugin{}).ValidateExecutionPolicy(context.Background(), ports.AgentConfig{}, policy); err == nil || !errors.Is(err, ports.ErrExecutionPolicyUnsupported) || !strings.Contains(err.Error(), "exact approved check") {
+		t.Fatalf("err = %v, want typed missing-check refusal", err)
 	}
 }
 
@@ -694,18 +706,13 @@ func TestGetLaunchCommandPinsWorkspaceWriteBoundary(t *testing.T) {
 			{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
 			{ID: "write", Name: domain.CapabilityWorktreeWrite, Scope: "worktree/*"},
 		},
+		ApprovedChecks: []domain.ApprovedCheck{{ID: "check-1", CriterionID: "criterion-1", Argv: []string{"go", "test", "./..."}, TimeoutSeconds: 60}},
 	}
-	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{ExecutionPolicy: &policy})
+	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{ExecutionPolicy: &policy, WorkspacePath: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsSubsequence(cmd, []string{
-		"--sandbox", "workspace-write",
-		"-c", "sandbox_workspace_write.network_access=false",
-		"-c", "sandbox_workspace_write.writable_roots=[]",
-		"-c", "sandbox_workspace_write.exclude_slash_tmp=true",
-		"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
-	}) {
+	if !containsSubsequence(cmd, []string{"--sandbox", "workspace-write"}) || !contains(cmd, "--ignore-user-config") || !containsSubsequence(cmd, []string{"--disable", "shell_tool"}) {
 		t.Fatalf("command does not pin the workspace-write boundary: %#v", cmd)
 	}
 }
@@ -1078,22 +1085,22 @@ func TestGetRestoreCommandPinsGovernedWorkspaceWriteBoundary(t *testing.T) {
 			{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
 			{ID: "write", Name: domain.CapabilityWorktreeWrite, Scope: "worktree/*"},
 		},
+		ApprovedChecks: []domain.ApprovedCheck{{ID: "check-1", CriterionID: "criterion-1", Argv: []string{"go", "test", "./..."}, TimeoutSeconds: 60}},
 	}
+	workspace := t.TempDir()
 	cmd, ok, err := plugin.GetRestoreCommand(context.Background(), ports.RestoreConfig{
 		Config:          ports.AgentConfig{Model: "approved-model"},
 		Permissions:     ports.PermissionModeBypassPermissions,
 		ExecutionPolicy: &policy,
-		Session:         ports.SessionRef{Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "thread-123"}},
+		Session:         ports.SessionRef{WorkspacePath: workspace, Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "thread-123"}},
 	})
 	if err != nil || !ok {
 		t.Fatalf("restore = (ok=%v, err=%v), want ok", ok, err)
 	}
 	for _, want := range []string{
-		"--sandbox", "workspace-write",
-		"sandbox_workspace_write.network_access=false",
-		"sandbox_workspace_write.writable_roots=[]",
-		"sandbox_workspace_write.exclude_slash_tmp=true",
-		"sandbox_workspace_write.exclude_tmpdir_env_var=true",
+		"--sandbox",
+		"workspace-write",
+		"--ignore-user-config",
 	} {
 		if !containsSubsequence(cmd, []string{want}) {
 			t.Fatalf("restore command %#v missing governed setting %q", cmd, want)
@@ -1102,7 +1109,7 @@ func TestGetRestoreCommandPinsGovernedWorkspaceWriteBoundary(t *testing.T) {
 	if containsSubsequence(cmd, []string{"--ask-for-approval", "never"}) || !containsSubsequence(cmd, []string{"--ask-for-approval", "on-request"}) {
 		t.Fatalf("restore command %#v did not force governed approval posture", cmd)
 	}
-	if !containsSubsequence(cmd, []string{"exec", "resume", "thread-123"}) {
+	if !containsSubsequence(cmd, []string{"exec", "--ignore-user-config", "resume", "thread-123"}) {
 		t.Fatalf("governed restore did not use one-shot codex exec resume: %#v", cmd)
 	}
 }

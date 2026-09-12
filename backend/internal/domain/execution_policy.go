@@ -21,6 +21,7 @@ type AttemptExecutionPolicy struct {
 	RunBriefCoreDigest     string            `json:"runBriefCoreDigest"`
 	RequiredCapabilities   []string          `json:"requiredCapabilities"`
 	Grants                 []CapabilityGrant `json:"grants"`
+	ApprovedChecks         []ApprovedCheck   `json:"approvedChecks,omitempty"`
 }
 
 // BuildAttemptExecutionPolicy selects only grants required by the admitted
@@ -70,6 +71,11 @@ func BuildAttemptExecutionPolicy(
 		}
 		grants = append(grants, grant)
 	}
+	checks := append([]ApprovedCheck(nil), unit.Checks...)
+	for i := range checks {
+		checks[i].Argv = append([]string(nil), checks[i].Argv...)
+	}
+	sort.Slice(checks, func(i, j int) bool { return checks[i].ID.String() < checks[j].ID.String() })
 
 	policy := AttemptExecutionPolicy{
 		OutcomeID:              outcomeID,
@@ -79,6 +85,7 @@ func BuildAttemptExecutionPolicy(
 		RunBriefCoreDigest:     strings.TrimSpace(runBriefCoreDigest),
 		RequiredCapabilities:   required,
 		Grants:                 grants,
+		ApprovedChecks:         checks,
 	}
 	if err := policy.Validate(); err != nil {
 		return AttemptExecutionPolicy{}, err
@@ -114,6 +121,24 @@ func (p AttemptExecutionPolicy) Validate() error {
 		if grant.Name != required[i] {
 			return fmt.Errorf("execution policy grant %q does not match required capability %q", grant.Name, required[i])
 		}
+	}
+	seenChecks := make(map[ApprovedCheckID]struct{}, len(p.ApprovedChecks))
+	lastCheckID := ""
+	for _, check := range p.ApprovedChecks {
+		if err := check.Validate(); err != nil {
+			return fmt.Errorf("execution policy: %w", err)
+		}
+		if _, exists := seenChecks[check.ID]; exists {
+			return fmt.Errorf("execution policy approved check %s is duplicated", check.ID)
+		}
+		if lastCheckID != "" && check.ID.String() < lastCheckID {
+			return fmt.Errorf("execution policy approved checks must be sorted by id")
+		}
+		seenChecks[check.ID] = struct{}{}
+		lastCheckID = check.ID.String()
+	}
+	if len(p.ApprovedChecks) > 0 && !p.Has(CapabilityWorktreeExec) {
+		return fmt.Errorf("execution policy approved checks require %s", CapabilityWorktreeExec)
 	}
 	return nil
 }

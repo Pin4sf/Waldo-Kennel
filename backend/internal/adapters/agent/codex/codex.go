@@ -8,12 +8,15 @@ package codex
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -149,25 +152,17 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	}
 	appendTerminalCompatibilityFlags(&providerArgs)
 	permission := cfg.Permissions
+	var execArgs []string
 	if cfg.ExecutionPolicy != nil {
 		if err := p.ValidateExecutionPolicy(ctx, cfg.Config, *cfg.ExecutionPolicy); err != nil {
 			return nil, err
 		}
-		sandbox, err := codexpolicy.SandboxFor(*cfg.ExecutionPolicy)
+		governedArgs, err := governedRepositoryArgs(*cfg.ExecutionPolicy, cfg.WorkspacePath)
 		if err != nil {
 			return nil, err
 		}
-		providerArgs = append(providerArgs, "--sandbox", sandbox)
-		if sandbox == "workspace-write" {
-			// These settings are independent of --sandbox and can otherwise be
-			// widened by ~/.codex/config.toml.
-			providerArgs = append(providerArgs,
-				"-c", "sandbox_workspace_write.network_access=false",
-				"-c", "sandbox_workspace_write.writable_roots=[]",
-				"-c", "sandbox_workspace_write.exclude_slash_tmp=true",
-				"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
-			)
-		}
+		providerArgs = append(providerArgs, governedArgs...)
+		execArgs = []string{"--ignore-user-config"}
 		permission = ports.PermissionModeAcceptEdits
 	}
 	return agentruntime.BuildLaunchCommand(agentruntime.LaunchConfig{
@@ -180,6 +175,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		SystemPromptFile: cfg.SystemPromptFile,
 		Permission:       agentruntime.PermissionPolicy(permission),
 		ProviderArgs:     providerArgs,
+		ExecArgs:         execArgs,
 		OneShot:          cfg.ExecutionPolicy != nil,
 	})
 }
@@ -210,23 +206,17 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 	}
 	appendTerminalCompatibilityFlags(&providerArgs)
 	permission := cfg.Permissions
+	var execArgs []string
 	if cfg.ExecutionPolicy != nil {
 		if err := p.ValidateExecutionPolicy(ctx, cfg.Config, *cfg.ExecutionPolicy); err != nil {
 			return nil, false, err
 		}
-		sandbox, err := codexpolicy.SandboxFor(*cfg.ExecutionPolicy)
+		governedArgs, err := governedRepositoryArgs(*cfg.ExecutionPolicy, cfg.Session.WorkspacePath)
 		if err != nil {
 			return nil, false, err
 		}
-		providerArgs = append(providerArgs, "--sandbox", sandbox)
-		if sandbox == "workspace-write" {
-			providerArgs = append(providerArgs,
-				"-c", "sandbox_workspace_write.network_access=false",
-				"-c", "sandbox_workspace_write.writable_roots=[]",
-				"-c", "sandbox_workspace_write.exclude_slash_tmp=true",
-				"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
-			)
-		}
+		providerArgs = append(providerArgs, governedArgs...)
+		execArgs = []string{"--ignore-user-config"}
 		permission = ports.PermissionModeAcceptEdits
 	}
 	return agentruntime.BuildRestoreCommand(agentruntime.RestoreConfig{
@@ -241,8 +231,46 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 		SystemPromptFile: cfg.SystemPromptFile,
 		Permission:       agentruntime.PermissionPolicy(permission),
 		ProviderArgs:     providerArgs,
+		ExecArgs:         execArgs,
 		OneShot:          cfg.ExecutionPolicy != nil,
 	})
+}
+
+func governedRepositoryArgs(policy domain.AttemptExecutionPolicy, workspace string) ([]string, error) {
+	sandbox, err := codexpolicy.SandboxFor(policy)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(workspace) == "" || !filepath.IsAbs(workspace) {
+		return nil, fmt.Errorf("codex governed repository tools require an absolute workspace path")
+	}
+	binary, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("resolve Kennel executable: %w", err)
+	}
+	raw, err := json.Marshal(policy)
+	if err != nil {
+		return nil, fmt.Errorf("marshal governed repository policy: %w", err)
+	}
+	encoded := base64.RawURLEncoding.EncodeToString(raw)
+	mcp := "mcp_servers={kennel_governed={command=" + strconv.Quote(binary) + ",args=[" + strconv.Quote("governed-tools") + "," + strconv.Quote("--workspace") + "," + strconv.Quote(workspace) + "," + strconv.Quote("--policy") + "," + strconv.Quote(encoded) + "],default_tools_approval_mode=\"approve\"}}"
+	args := []string{
+		"--sandbox", sandbox,
+		"-c", "web_search=\"disabled\"",
+		"-c", mcp,
+	}
+	if sandbox == "workspace-write" {
+		args = append(args,
+			"-c", "sandbox_workspace_write.network_access=false",
+			"-c", "sandbox_workspace_write.writable_roots=[]",
+			"-c", "sandbox_workspace_write.exclude_slash_tmp=true",
+			"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+		)
+	}
+	for _, feature := range []string{"shell_tool", "unified_exec", "plugins", "apps", "remote_plugin", "browser_use", "computer_use", "standalone_web_search", "multi_agent"} {
+		args = append(args, "--disable", feature)
+	}
+	return args, nil
 }
 
 // SessionInfo surfaces Codex hook-derived metadata. Metadata is intentionally

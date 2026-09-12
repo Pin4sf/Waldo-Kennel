@@ -31,6 +31,7 @@ var routineInternalCLICommands = []string{
 	"kennel orchestrator ls",
 	"kennel hooks",
 	"kennel pty-host",
+	"kennel governed-tools",
 }
 
 // CLIActorType infers the actor for legacy loopback CLI telemetry requests that

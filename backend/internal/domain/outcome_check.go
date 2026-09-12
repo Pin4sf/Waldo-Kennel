@@ -29,12 +29,12 @@ const ApprovedCheckMaxTimeoutSeconds int64 = 900
 // is what makes them authority, and the Plan digest freezes them so an
 // approved check cannot change under the Attempt that runs it.
 type ApprovedCheck struct {
-	ID          ApprovedCheckID
-	CriterionID CriterionID
+	ID          ApprovedCheckID `json:"id"`
+	CriterionID CriterionID     `json:"criterionId"`
 	// Argv[0] is a discrete executable name resolved from the check runner's
 	// own PATH; it is not a path and not a shell.
-	Argv           []string
-	TimeoutSeconds int64
+	Argv           []string `json:"argv"`
+	TimeoutSeconds int64    `json:"timeoutSeconds"`
 }
 
 // Validate checks one approved check's structural invariants.

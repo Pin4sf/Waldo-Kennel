@@ -38,6 +38,26 @@ func TestBuildAttemptExecutionPolicySelectsUnitGrantsAndIsStable(t *testing.T) {
 	}
 }
 
+func TestBuildAttemptExecutionPolicyFreezesApprovedChecksInDigest(t *testing.T) {
+	plan := PlanRevision{ID: "plan-1", OutcomeID: "out-1", ContractRevisionNumber: 1, Grants: []CapabilityGrant{{ID: "exec", Name: CapabilityWorktreeExec, Scope: "worktree/*"}, {ID: "read", Name: CapabilityWorktreeRead, Scope: "worktree/*"}, {ID: "write", Name: CapabilityWorktreeWrite, Scope: "worktree/*"}}}
+	unit := WorkUnit{ID: "wu-1", RequiredCapabilities: []string{CapabilityWorktreeExec, CapabilityWorktreeRead, CapabilityWorktreeWrite}, Checks: []ApprovedCheck{{ID: "check-b", CriterionID: "criterion-1", Argv: []string{"go", "test", "./..."}, TimeoutSeconds: 60}}}
+	policy, err := BuildAttemptExecutionPolicy("out-1", plan, unit, "brief")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, _ := policy.Digest()
+	unit.Checks[0].Argv[1] = "vet"
+	after, _ := policy.Digest()
+	if before != after || policy.ApprovedChecks[0].Argv[1] != "test" {
+		t.Fatalf("policy did not deep-freeze checks: %+v", policy.ApprovedChecks)
+	}
+	policy.ApprovedChecks[0].Argv[1] = "vet"
+	changed, _ := policy.Digest()
+	if changed == before {
+		t.Fatal("check vector was absent from policy digest")
+	}
+}
+
 func TestBuildAttemptExecutionPolicyDoesNotUseUnrequestedPlanGrant(t *testing.T) {
 	plan := PlanRevision{
 		ID:                     "plan-1",

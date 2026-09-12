@@ -67,6 +67,9 @@ type LaunchConfig struct {
 	// prompt arguments. Desktop Kennel uses these for its Codex activity hooks;
 	// workers normally leave them empty.
 	ProviderArgs []string
+	// ExecArgs are trusted host-owned options placed after `codex exec` and
+	// before its prompt or resume subcommand.
+	ExecArgs []string
 	// OneShot selects the provider command that exits after the supplied turn.
 	// It is used only for approved governed WorkUnits; ordinary sessions remain interactive.
 	OneShot bool
@@ -88,6 +91,7 @@ type RestoreConfig struct {
 	DisallowedTools  []string
 	OneShot          bool
 	ProviderArgs     []string
+	ExecArgs         []string
 }
 
 // BuildLaunchCommand returns argv for a fresh interactive agent process.
@@ -296,6 +300,7 @@ func buildCodexLaunch(cfg LaunchConfig) []string {
 	cmd = appendCodexCommon(cmd, cfg.WorkspacePath, cfg.Model, cfg.SystemPromptFile, cfg.SystemPrompt)
 	if cfg.OneShot {
 		cmd = append(cmd, "exec")
+		cmd = append(cmd, cfg.ExecArgs...)
 	}
 	if cfg.Prompt != "" {
 		cmd = append(cmd, "--", cfg.Prompt)
@@ -307,7 +312,9 @@ func buildCodexRestore(cfg RestoreConfig, identity string) []string {
 	if cfg.OneShot {
 		cmd := codexBaseCommand(cfg.Binary, cfg.Permission, cfg.ProviderArgs)
 		cmd = appendCodexCommon(cmd, cfg.WorkspacePath, cfg.Model, cfg.SystemPromptFile, cfg.SystemPrompt)
-		cmd = append(cmd, "exec", "resume", identity)
+		cmd = append(cmd, "exec")
+		cmd = append(cmd, cfg.ExecArgs...)
+		cmd = append(cmd, "resume", identity)
 		if cfg.Prompt != "" {
 			cmd = append(cmd, "--", cfg.Prompt)
 		}

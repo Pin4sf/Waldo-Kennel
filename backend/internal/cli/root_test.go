@@ -162,10 +162,11 @@ func TestShouldEmitCLIInvocationSkipsNonUsageAndRoutineInternalCommands(t *testi
 		// hooks/status are routine internal polling paths; pty-host is only an
 		// internal Windows runtime process. Successful executions should not
 		// count as CLI usage.
-		"hooks":    false,
-		"pty-host": false,
-		"status":   false,
-		"spawn":    true,
+		"hooks":          false,
+		"pty-host":       false,
+		"status":         false,
+		"governed-tools": false,
+		"spawn":          true,
 	} {
 		cmd, ok := byName[name]
 		if !ok {
@@ -204,6 +205,7 @@ func TestTelemetryMetaClassifiesRegisteredCommandPaths(t *testing.T) {
 		"kennel completion":              {},
 		"kennel daemon":                  {},
 		"kennel help":                    {},
+		"kennel governed-tools":          {},
 		"kennel pty-host":                {},
 		"kennel start":                   {},
 	}

@@ -3,6 +3,7 @@ package outcome_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -394,11 +395,14 @@ func TestStartAttemptDeliversExactAssignedContractAndApprovedCheckMaterial(t *te
 	if strings.Contains(req.Prompt, unrelatedText) {
 		t.Fatalf("spawn prompt widened criterion scope:\n%s", req.Prompt)
 	}
-	if !strings.Contains(req.Prompt, "Kennel, not this worker, decides when to execute these checks") {
+	if !strings.Contains(req.Prompt, "run_approved_check") || !strings.Contains(req.Prompt, "Do not reconstruct or run these vectors through another execution surface") {
 		t.Fatalf("spawn prompt did not distinguish verification ownership from worker authority:\n%s", req.Prompt)
 	}
 	if req.ExecutionPolicy == nil || req.ExecutionPolicy.ContractRevisionNumber != revision.Number || req.ExecutionPolicy.PlanRevisionID != planID || req.ExecutionPolicy.WorkUnitID != unit.ID || req.ExecutionPolicy.RunBriefCoreDigest != plan.RunBriefCoreDigest {
 		t.Fatalf("spawn policy lost frozen attribution: %+v", req.ExecutionPolicy)
+	}
+	if len(req.ExecutionPolicy.ApprovedChecks) != 1 || req.ExecutionPolicy.ApprovedChecks[0].ID != unit.Checks[0].ID || !reflect.DeepEqual(req.ExecutionPolicy.ApprovedChecks[0].Argv, unit.Checks[0].Argv) {
+		t.Fatalf("spawn policy lost frozen executable check: %+v", req.ExecutionPolicy.ApprovedChecks)
 	}
 	if len(started.Sessions) != 1 || started.Sessions[0].RunBriefCoreDigest != plan.RunBriefCoreDigest {
 		t.Fatalf("durable session binding lost frozen RunBrief: %+v", started.Sessions)

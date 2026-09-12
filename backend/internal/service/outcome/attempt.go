@@ -754,8 +754,9 @@ func renderRunBriefPrompt(revision domain.ContractRevision, unit domain.WorkUnit
 	}
 	b.WriteString("Verification: " + unit.VerificationRequirement + "\n")
 	if len(unit.Checks) > 0 {
-		b.WriteString("\nDaemon-owned approved verification checks (context only):\n")
-		b.WriteString("Kennel, not this worker, decides when to execute these checks. Their presence grants no additional command authority or capability.\n")
+		b.WriteString("\nApproved executable checks:\n")
+		b.WriteString("Kennel, not this worker, decides which exact commands are executable.\n")
+		b.WriteString("Use the governed repository run_approved_check tool with the check id. Do not reconstruct or run these vectors through another execution surface.\n")
 		for _, check := range unit.Checks {
 			b.WriteString("Check " + check.ID.String() + " for criterion " + check.CriterionID.String() + ":\n")
 			b.WriteString("- working directory: isolated worktree root\n")
@@ -766,6 +767,7 @@ func renderRunBriefPrompt(revision domain.ContractRevision, unit domain.WorkUnit
 			}
 		}
 	}
+	b.WriteString("\nUse only the governed repository tools Kennel exposes for repository reads, writes, and approved checks. If a required operation is not exposed, stop and report the exact missing affordance.\n")
 	if len(unit.StopConditions) > 0 {
 		b.WriteString("Stop conditions:\n")
 		for _, stop := range unit.StopConditions {

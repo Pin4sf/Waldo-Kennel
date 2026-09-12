@@ -206,6 +206,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 		newOrchestratorCommand(ctx),
 		newPRCommand(ctx),
 		newReviewCommand(ctx),
+		newGovernedToolsCommand(ctx),
 	} {
 		command.Hidden = true
 		root.AddCommand(command)
