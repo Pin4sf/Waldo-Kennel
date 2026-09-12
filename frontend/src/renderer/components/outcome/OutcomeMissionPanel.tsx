@@ -121,6 +121,7 @@ export function OutcomeMissionPanel({
 					<>
 						<MissionGlance
 							attention={attention}
+							connection={connection}
 							goal={outcome.currentRevision.goal}
 							loading={runQuery.isLoading}
 							onRefresh={() => {
@@ -233,12 +234,14 @@ export function OutcomeMissionPanel({
 
 function MissionGlance({
 	attention,
+	connection,
 	goal,
 	loading,
 	onRefresh,
 	onSelect,
 }: {
 	attention: ReturnType<typeof runStateAttention>;
+	connection: ReturnType<typeof useEventsConnection>;
 	goal: string;
 	loading: boolean;
 	onRefresh: () => void;
@@ -271,7 +274,9 @@ function MissionGlance({
 					<p className="text-sm font-medium">
 						{loading ? t("outcome.overview.loading") : t(`mission.lane.${attention.lane}`)}
 					</p>
-					<p className="text-xs leading-body text-muted-foreground">{loading ? t("mission.connected") : nextDescription}</p>
+					<p className="text-xs leading-body text-muted-foreground">
+						{connection !== "connected" ? t("mission.offline") : loading ? t("outcome.overview.loading") : nextDescription}
+					</p>
 				</div>
 				<Button
 					className="shrink-0"
