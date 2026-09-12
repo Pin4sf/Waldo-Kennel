@@ -179,6 +179,50 @@ func TestRestoreGovernedSessionRejectsTerminalAttemptBeforeWorkspaceOrRuntimeMut
 	}
 }
 
+func TestRestoreAllSkipsTerminalGovernedAttemptBeforeWorkspaceOrRuntimeMutation(t *testing.T) {
+	policy, digest := recoveryPolicy(t)
+	base := newFakeStore()
+	base.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: testRoleAgents()}
+	base.sessions["mer-1"] = domain.SessionRecord{
+		ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex,
+		IsTerminated: true,
+		Metadata: domain.SessionMetadata{
+			WorkspacePath: "/ws/mer-1", Branch: "kennel/mer-1", AgentSessionID: "native-1",
+			GovernedExecutionPolicyDigest: digest,
+		},
+	}
+	base.worktrees["mer-1"] = []domain.SessionWorktreeRecord{{
+		SessionID: "mer-1", RepoName: domain.RootWorkspaceRepoName,
+		Branch: "kennel/mer-1", WorktreePath: "/ws/mer-1",
+	}}
+	store := &recoveryEvidenceFakeStore{
+		fakeStore: base,
+		ref:       recoveryRef(t, "mer-1", domain.SessionModeTUI, policy, digest),
+		found:     true,
+		attempt: &domain.Attempt{
+			ID: "att-1", OutcomeID: policy.OutcomeID, PlanRevisionID: policy.PlanRevisionID,
+			WorkUnitID: policy.WorkUnitID, Number: 1, Status: domain.AttemptSucceeded,
+		},
+	}
+	workspace := &fakeWorkspace{}
+	runtime := &fakeRuntime{}
+	mgr := New(Deps{
+		Runtime: runtime, Agents: singleAgent{agent: &recordingAgent{}}, Workspace: workspace,
+		Store: store, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: base},
+		LookPath: func(string) (string, error) { return "/bin/true", nil },
+	})
+
+	if err := mgr.RestoreAll(context.Background()); err != nil {
+		t.Fatalf("RestoreAll: %v", err)
+	}
+	if len(workspace.restoreConfigs) != 0 || runtime.created != 0 {
+		t.Fatalf("startup restored terminal Attempt execution: workspace restores=%d runtime creates=%d", len(workspace.restoreConfigs), runtime.created)
+	}
+	if rows := base.worktrees["mer-1"]; len(rows) != 0 {
+		t.Fatalf("terminal Attempt retained stale shutdown marker: %+v", rows)
+	}
+}
+
 func TestResumeGovernedSessionRejectsTerminalAttemptBeforeRuntimeMutation(t *testing.T) {
 	policy, digest := recoveryPolicy(t)
 	base := newFakeStore()

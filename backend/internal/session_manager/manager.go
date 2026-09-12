@@ -2410,6 +2410,24 @@ func (m *Manager) RestoreAll(ctx context.Context) error {
 		if len(rows) == 0 {
 			continue
 		}
+		// Startup recovery is a separate entry point from RestoreWithMode. Apply
+		// the same governed Attempt fence before recreating any workspace: a
+		// shutdown marker is recovery metadata, never fresh execution authority.
+		if err := m.ensureGovernedAttemptOpen(ctx, rec); err != nil {
+			if errors.Is(err, ErrGovernedAttemptClosed) {
+				// The marker is one-shot. Clearing it prevents every later boot from
+				// reconsidering this ended execution; retained artifacts and the
+				// inspectable session/workspace record are untouched.
+				if clearErr := m.store.DeleteSessionWorktrees(ctx, rec.ID); clearErr != nil {
+					m.logger.Error("restore-all: clear closed Attempt marker failed", "sessionID", rec.ID, "error", clearErr)
+				} else {
+					m.logger.Info("restore-all: terminal governed Attempt left terminated", "sessionID", rec.ID)
+				}
+			} else {
+				m.logger.Error("restore-all: governed Attempt state unavailable", "sessionID", rec.ID, "error", err)
+			}
+			continue
+		}
 
 		// Step 1: ensure the worktree exists. workspace.Restore re-creates it
 		// if it was removed by SaveAndTeardownAll.
