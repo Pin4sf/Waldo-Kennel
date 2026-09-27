@@ -611,6 +611,48 @@ type DecompositionRevision struct {
 	AuthorizedAt       sql.NullTime
 }
 
+type DeviceBridgeDevice struct {
+	DeviceID          string
+	OwnerID           string
+	Label             string
+	PublicKey         string
+	KeyCustodyRef     string
+	ContractVersion   string
+	CapabilityClasses string
+	State             string
+	PairedAt          sql.NullTime
+	RevokedAt         sql.NullTime
+	LastSeenAt        sql.NullTime
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type DeviceBridgeInboxJournal struct {
+	CommandID          string
+	Revision           int64
+	IdempotencyKey     string
+	PayloadFingerprint string
+	Class              string
+	Payload            string
+	State              string
+	RejectReason       string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type DeviceBridgeOutbox struct {
+	Seq         int64
+	MessageID   string
+	CommandID   string
+	Revision    int64
+	Class       string
+	Payload     string
+	State       string
+	CreatedAt   time.Time
+	SentAt      sql.NullTime
+	ReceiptedAt sql.NullTime
+}
+
 type EvidenceItem struct {
 	ID                 string
 	OutcomeID          string
