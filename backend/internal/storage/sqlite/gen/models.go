@@ -332,6 +332,33 @@ type CapabilityGrant struct {
 	Scope          string
 }
 
+type CaptureGrant struct {
+	GrantID                 string
+	OwnerID                 string
+	DeviceID                string
+	Modality                string
+	OsPermissionKind        string
+	OsPermissionState       string
+	ScopeJson               string
+	Purpose                 string
+	AllowedSpaceIdsJson     string
+	ProcessingRoute         string
+	DisclosurePolicy        string
+	RawRetentionSeconds     int64
+	DerivedRetentionSeconds int64
+	Sensitivity             string
+	BystanderPolicy         string
+	ExportBehavior          string
+	DeleteBehavior          string
+	State                   string
+	PolicyGeneration        int64
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
+	PausedAt                sql.NullTime
+	RevokedAt               sql.NullTime
+	DeletedAt               sql.NullTime
+}
+
 type ChangeLog struct {
 	Seq       int64
 	ProjectID domain.ProjectID
@@ -1467,6 +1494,43 @@ type ShellTerminal struct {
 	AppRunID   string
 	CreatedAt  time.Time
 	SessionID  sql.NullString
+}
+
+type SourceArtifact struct {
+	ArtifactID      string
+	OwnerID         string
+	GrantID         string
+	GrantGeneration int64
+	Modality        string
+	ContentKind     string
+	MimeType        string
+	HashAlgorithm   string
+	ContentHash     string
+	BlobCustodyRef  string
+	ProvenanceKind  string
+	ProvenanceRef   string
+	CapturedAt      time.Time
+	LifecycleState  string
+	CreatedAt       time.Time
+	DeletedAt       sql.NullTime
+}
+
+type SourceSegment struct {
+	SegmentID       string
+	OwnerID         string
+	GrantID         string
+	ArtifactID      string
+	GrantGeneration int64
+	Modality        string
+	Ordinal         int64
+	StartOffset     sql.NullInt64
+	EndOffset       sql.NullInt64
+	StartAt         sql.NullTime
+	EndAt           sql.NullTime
+	ProvenanceRef   string
+	LifecycleState  string
+	CreatedAt       time.Time
+	DeletedAt       sql.NullTime
 }
 
 type TelemetryEvent struct {
