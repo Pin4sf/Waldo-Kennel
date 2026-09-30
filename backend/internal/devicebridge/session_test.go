@@ -49,6 +49,21 @@ func (m *mockSessionStore) AcceptedUnresulted(ctx context.Context, s Scope) ([][
 	err := m.event(s, "reconcile-list")
 	return m.accepted, err
 }
+func (m *mockSessionStore) ResultForCommand(ctx context.Context, s Scope, raw []byte) ([]byte, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	command, err := ParseBackendFrame(raw)
+	if err != nil {
+		return nil, false, err
+	}
+	for _, row := range m.pending {
+		result, _ := parseJSONObject(row.Frame)
+		if result["command_id"] == command["command_id"] {
+			return row.Frame, true, nil
+		}
+	}
+	return nil, false, m.event(s, "result-lookup")
+}
 func (m *mockSessionStore) Admit(ctx context.Context, s Scope, raw []byte, now time.Time) (Admission, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -213,7 +228,7 @@ func TestReconnectDrainThenReconcileBeforeNewWork(t *testing.T) {
 	if err := c.RunConnection(context.Background(), socket); !errors.Is(err, io.EOF) {
 		t.Fatal(err)
 	}
-	if len(socket.frames) != 4 {
+	if len(socket.frames) != 3 {
 		t.Fatalf("writes=%d", len(socket.frames))
 	}
 	first, _ := parseJSONObject(socket.frames[0])

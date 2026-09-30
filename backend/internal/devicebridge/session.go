@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"errors"
 	"net/http"
 	"sync"
@@ -11,6 +12,10 @@ import (
 )
 
 var ErrTerminalFrame = errors.New("terminal device bridge frame rejection")
+
+// No contract outcome is defined for expired accepted-unresulted recovery.
+// Preserve the journal and stop locally until that decision is resolved.
+var ErrExpiredRecovery = errors.New("expired accepted command requires recovery decision")
 
 // Executor is the separate S4 boundary. It returns only the class-specific
 // result payload. Reconcile must inspect durable evidence and never blindly
@@ -41,7 +46,9 @@ type Client struct {
 	Executor     Executor
 	Dialer       Dialer
 	// State projects transport truth only; it grants no owner authority.
-	State          func(ConnectionState)
+	State func(ConnectionState)
+	// Diagnostic exposes a local reason only, never a wire response.
+	Diagnostic     func(string)
 	now            func() time.Time
 	heartbeatTicks <-chan time.Time
 }
@@ -143,7 +150,8 @@ func (c *Client) RunConnection(ctx context.Context, socket Socket) (runErr error
 		return err
 	}
 	c.state(ConnectionOnline)
-	if err := c.drain(ctx, socket); err != nil {
+	sent := newDrainIdentities()
+	if err := c.drainUnique(ctx, socket, sent); err != nil {
 		return err
 	}
 	commands, err := c.Store.AcceptedUnresulted(ctx, c.Scope)
@@ -155,6 +163,10 @@ func (c *Client) RunConnection(ctx context.Context, socket Socket) (runErr error
 		if err != nil || command["type"] != TypeCommand || !c.Scope.matches(command) || !c.declares(command["class"]) {
 			return ErrTerminalFrame
 		}
+		expires, _ := parseInteger(command["expires_at"])
+		if expires <= c.clock().Unix() {
+			return ErrExpiredRecovery
+		}
 		payload, err := c.Executor.Reconcile(ctx, c.Scope, command)
 		if err != nil {
 			return err
@@ -163,7 +175,7 @@ func (c *Client) RunConnection(ctx context.Context, socket Socket) (runErr error
 			return err
 		}
 	}
-	if err := c.drain(ctx, socket); err != nil {
+	if err := c.drainUnique(ctx, socket, sent); err != nil {
 		return err
 	}
 	type incoming struct {
@@ -192,7 +204,7 @@ func (c *Client) RunConnection(ctx context.Context, socket Socket) (runErr error
 			if read.err != nil {
 				return read.err
 			}
-			if err := c.process(ctx, socket, read.raw); err != nil {
+			if err := c.processUnique(ctx, socket, read.raw, sent); err != nil {
 				return err
 			}
 		}
@@ -209,7 +221,18 @@ func (c *Client) heartbeat(ctx context.Context, s Socket) error {
 	}
 	return s.Write(ctx, frame)
 }
-func (c *Client) drain(ctx context.Context, s Socket) error {
+
+// Deduplicate both durable identities across the two startup drain passes.
+// A new connection gets a new set; explicit command redelivery bypasses it.
+type drainIdentities struct{ messages, idempotency map[string][sha256.Size]byte }
+
+func newDrainIdentities() *drainIdentities {
+	return &drainIdentities{map[string][sha256.Size]byte{}, map[string][sha256.Size]byte{}}
+}
+func (c *Client) drain(ctx context.Context, socket Socket) error {
+	return c.drainUnique(ctx, socket, newDrainIdentities())
+}
+func (c *Client) drainUnique(ctx context.Context, socket Socket, sent *drainIdentities) error {
 	rows, err := c.Store.Pending(ctx, c.Scope)
 	if err != nil {
 		return err
@@ -224,29 +247,57 @@ func (c *Client) drain(ctx context.Context, s Socket) error {
 		if err != nil || !c.Scope.matches(frame) || frame["type"] != TypeResult {
 			return ErrTerminalFrame
 		}
-		nonce, err := NewNonce(nil)
+		fingerprint, err := LogicalFingerprint(frame)
 		if err != nil {
+			return errors.Join(ErrTerminalFrame, err)
+		}
+		message := frame["message_id"].(string)
+		idem := frame["idempotency_key"].(string)
+		oldMessage, hasMessage := sent.messages[message]
+		oldIdem, hasIdem := sent.idempotency[idem]
+		if (hasMessage && oldMessage != fingerprint) || (hasIdem && oldIdem != fingerprint) {
+			return ErrTerminalFrame
+		}
+		if hasMessage || hasIdem {
+			continue
+		}
+		if err := c.sendResult(ctx, socket, row.Frame); err != nil {
 			return err
 		}
-		wire, err := ResignFrame(row.Frame, c.Key, c.clock(), nonce)
-		if err != nil {
-			return err
-		}
-		if err = s.Write(ctx, wire); err != nil {
-			return err
-		}
+		sent.messages[message] = fingerprint
+		sent.idempotency[idem] = fingerprint
 	}
 	return nil
 }
+func (c *Client) sendResult(ctx context.Context, socket Socket, raw []byte) error {
+	nonce, err := NewNonce(nil)
+	if err != nil {
+		return err
+	}
+	wire, err := ResignFrame(raw, c.Key, c.clock(), nonce)
+	if err != nil {
+		return err
+	}
+	return socket.Write(ctx, wire)
+}
 func (c *Client) process(ctx context.Context, s Socket, raw []byte) error {
+	return c.processUnique(ctx, s, raw, newDrainIdentities())
+}
+func (c *Client) processUnique(ctx context.Context, s Socket, raw []byte, sent *drainIdentities) error {
 	frame, reason, err := classifyInbound(raw, c.Scope, c.clock())
 	if err != nil {
+		if errors.Is(err, ErrTerminalFrame) && c.Diagnostic != nil {
+			c.Diagnostic(ReasonInvalidShape)
+		}
 		return err
 	}
 	if frame["type"] == TypeReceipt {
 		// Store must perform binding validation and tombstone/outbox mutation in
 		// one transaction; lookup-then-delete here would introduce a receipt race.
 		if err := c.Store.ApplyReceipt(ctx, c.Scope, raw, c.clock()); err != nil {
+			if errors.Is(err, ErrUnknownReceiptMessage) && c.Diagnostic != nil {
+				c.Diagnostic(ReasonUnknownMessage)
+			}
 			return errors.Join(ErrTerminalFrame, err)
 		}
 		return nil
@@ -275,7 +326,25 @@ func (c *Client) process(ctx context.Context, s Socket, raw []byte) error {
 		return nil
 	}
 	if !admitted.New {
-		return c.drain(ctx, s)
+		result, exists, err := c.Store.ResultForCommand(ctx, c.Scope, raw)
+		if err != nil {
+			return err
+		}
+		if exists {
+			parsed, err := parseJSONObject(result)
+			if err != nil || ValidateResultForCommand(parsed, frame) != nil {
+				return ErrTerminalFrame
+			}
+			return c.sendResult(ctx, s, result)
+		}
+		payload, err := c.Executor.Reconcile(ctx, c.Scope, frame)
+		if err != nil {
+			return err
+		}
+		if err := c.persistResult(ctx, raw, frame, payload); err != nil {
+			return err
+		}
+		return c.drainUnique(ctx, s, sent)
 	}
 	payload, err := c.Executor.Handle(ctx, c.Scope, frame)
 	if err != nil {
@@ -284,7 +353,7 @@ func (c *Client) process(ctx context.Context, s Socket, raw []byte) error {
 	if err = c.persistResult(ctx, raw, frame, payload); err != nil {
 		return err
 	}
-	return c.drain(ctx, s)
+	return c.drainUnique(ctx, s, sent)
 }
 func (c *Client) ack(ctx context.Context, s Socket, command map[string]any, state, reason string) error {
 	frame, err := newAttributedAck(command, state, reason, c.Key, c.clock())

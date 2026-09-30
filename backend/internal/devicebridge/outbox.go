@@ -44,6 +44,10 @@ type SessionStore interface {
 	Pending(context.Context, Scope) ([]PendingResult, error)
 	Depth(context.Context, Scope) (int64, error)
 	AcceptedUnresulted(context.Context, Scope) ([][]byte, error)
+	// ResultForCommand returns the retained, validated signed result for this
+	// journaled command, even after receipt removes its outbox row. Nil means
+	// accepted but unresulted. It must validate the command fingerprint.
+	ResultForCommand(context.Context, Scope, []byte) ([]byte, bool, error)
 	Admit(context.Context, Scope, []byte, time.Time) (Admission, error)
 	CommitResult(context.Context, Scope, []byte, []byte) error
 	ApplyReceipt(context.Context, Scope, []byte, time.Time) error
