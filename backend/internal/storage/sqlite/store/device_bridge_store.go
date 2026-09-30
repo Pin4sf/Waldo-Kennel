@@ -115,6 +115,9 @@ func (s *Store) TouchDeviceBridgeDeviceLastSeen(ctx context.Context, id domain.D
 // inserts nothing and is a conflict: the caller reuses the existing entry,
 // so a redelivered logical message never spools a second effect.
 func (s *Store) EnqueueDeviceBridgeOutbox(ctx context.Context, msg domain.DeviceBridgeOutboxMessage) (int64, error) {
+	if s.bridgeScopedSchema(ctx) {
+		return 0, domain.ErrDeviceBridgeInvalid
+	}
 	msg.State = domain.DeviceBridgeOutboxPending
 	msg.SentAt = nil
 	msg.ReceiptedAt = nil
@@ -144,6 +147,9 @@ func (s *Store) EnqueueDeviceBridgeOutbox(ctx context.Context, msg domain.Device
 }
 
 func (s *Store) GetDeviceBridgeOutboxByMessageID(ctx context.Context, messageID string) (domain.DeviceBridgeOutboxMessage, bool, error) {
+	if s.bridgeScopedSchema(ctx) {
+		return domain.DeviceBridgeOutboxMessage{}, false, domain.ErrDeviceBridgeInvalid
+	}
 	row, err := s.qr.GetDeviceBridgeOutboxByMessageID(ctx, messageID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DeviceBridgeOutboxMessage{}, false, nil
@@ -159,6 +165,9 @@ func (s *Store) GetDeviceBridgeOutboxByMessageID(ctx context.Context, messageID 
 // receipt clears it, so a disconnect mid-drain never loses a message whose
 // delivery state is unknown.
 func (s *Store) ListPendingDeviceBridgeOutbox(ctx context.Context, limit int) ([]domain.DeviceBridgeOutboxMessage, error) {
+	if s.bridgeScopedSchema(ctx) {
+		return nil, domain.ErrDeviceBridgeInvalid
+	}
 	if limit < 1 {
 		limit = 100
 	}
@@ -174,6 +183,9 @@ func (s *Store) ListPendingDeviceBridgeOutbox(ctx context.Context, limit int) ([
 }
 
 func (s *Store) MarkDeviceBridgeOutboxSent(ctx context.Context, seq int64, now time.Time) (bool, error) {
+	if s.bridgeScopedSchema(ctx) {
+		return false, domain.ErrDeviceBridgeInvalid
+	}
 	if now.IsZero() {
 		return false, domain.ErrDeviceBridgeInvalid
 	}
@@ -189,6 +201,9 @@ func (s *Store) MarkDeviceBridgeOutboxSent(ctx context.Context, seq int64, now t
 // MarkDeviceBridgeOutboxReceipted is the only path that clears an entry from
 // drain: the backend's durable receipt, never a local send.
 func (s *Store) MarkDeviceBridgeOutboxReceipted(ctx context.Context, seq int64, now time.Time) (bool, error) {
+	if s.bridgeScopedSchema(ctx) {
+		return false, domain.ErrDeviceBridgeInvalid
+	}
 	if now.IsZero() {
 		return false, domain.ErrDeviceBridgeInvalid
 	}
@@ -202,6 +217,9 @@ func (s *Store) MarkDeviceBridgeOutboxReceipted(ctx context.Context, seq int64, 
 }
 
 func (s *Store) CountPendingDeviceBridgeOutbox(ctx context.Context) (int64, error) {
+	if s.bridgeScopedSchema(ctx) {
+		return 0, domain.ErrDeviceBridgeInvalid
+	}
 	return s.qr.CountPendingDeviceBridgeOutbox(ctx)
 }
 
@@ -211,6 +229,9 @@ func (s *Store) CountPendingDeviceBridgeOutbox(ctx context.Context) (int64, erro
 // one effect, no duplicate work. The same key with a different fingerprint is
 // a conflict and is never last-writer-wins.
 func (s *Store) RecordDeviceBridgeInbound(ctx context.Context, cmd domain.DeviceBridgeInboxCommand) (domain.DeviceBridgeInboxCommand, bool, error) {
+	if s.bridgeScopedSchema(ctx) {
+		return domain.DeviceBridgeInboxCommand{}, false, domain.ErrDeviceBridgeInvalid
+	}
 	if cmd.State != domain.DeviceBridgeInboxReceived {
 		return domain.DeviceBridgeInboxCommand{}, false, domain.ErrDeviceBridgeInvalid
 	}
@@ -248,6 +269,9 @@ func (s *Store) RecordDeviceBridgeInbound(ctx context.Context, cmd domain.Device
 }
 
 func (s *Store) GetDeviceBridgeInboundByIdempotencyKey(ctx context.Context, key string) (domain.DeviceBridgeInboxCommand, bool, error) {
+	if s.bridgeScopedSchema(ctx) {
+		return domain.DeviceBridgeInboxCommand{}, false, domain.ErrDeviceBridgeInvalid
+	}
 	row, err := s.qr.GetDeviceBridgeInboundByIdempotencyKey(ctx, key)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DeviceBridgeInboxCommand{}, false, nil
@@ -262,6 +286,9 @@ func (s *Store) GetDeviceBridgeInboundByIdempotencyKey(ctx context.Context, key 
 // TransitionDeviceBridgeInbound is the journal lifecycle CAS over the closed
 // transitions: received -> acked/rejected/expired, acked -> resulted.
 func (s *Store) TransitionDeviceBridgeInbound(ctx context.Context, commandID string, revision int64, to domain.DeviceBridgeInboxState, rejectReason string, now time.Time) (bool, error) {
+	if s.bridgeScopedSchema(ctx) {
+		return false, domain.ErrDeviceBridgeInvalid
+	}
 	if strings.TrimSpace(commandID) == "" || revision < 1 || now.IsZero() {
 		return false, domain.ErrDeviceBridgeInvalid
 	}
@@ -340,4 +367,11 @@ func deviceBridgeInboundFromGen(row gen.DeviceBridgeInboxJournal) (domain.Device
 		return domain.DeviceBridgeInboxCommand{}, err
 	}
 	return rec, nil
+}
+
+// Legacy APIs have no device scope and must never read/write across devices.
+func (s *Store) bridgeScopedSchema(ctx context.Context) bool {
+	var n int
+	err := s.readDB.QueryRowContext(ctx, "SELECT count(*) FROM pragma_table_info('device_bridge_outbox') WHERE name='device_id'").Scan(&n)
+	return err != nil || n != 0
 }
