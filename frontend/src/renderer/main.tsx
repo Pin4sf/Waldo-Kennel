@@ -14,6 +14,7 @@ import { initTelemetry } from "./lib/telemetry";
 import { startDaemonFailureTelemetry } from "./lib/daemon-telemetry";
 import { startUpdateTelemetry } from "./lib/update-telemetry";
 import { appI18n } from "./i18n";
+import { usesPreviewWorkspaceData } from "./lib/preview-mode";
 import { useLocaleStore } from "./stores/locale-store";
 
 const router = createAppRouter(queryClient);
@@ -73,6 +74,13 @@ async function renderApp(): Promise<void> {
 	// Resolve the persisted locale before mounting so translated text never
 	// flashes in English for users who selected another language.
 	await useLocaleStore.getState().load();
+ if (import.meta.env.DEV && usesPreviewWorkspaceData && window.location.pathname === "/__preview/connect-waldo") {
+  const { default: Preview } = await import("./components/preview/WaldoConnectionPreview");
+  createRoot(document.getElementById("root") as HTMLElement).render(
+   <I18nextProvider i18n={appI18n}><QueryClientProvider client={queryClient}><Preview /></QueryClientProvider></I18nextProvider>,
+  );
+  return;
+ }
 	createRoot(document.getElementById("root") as HTMLElement).render(
 		<React.StrictMode>
 			<I18nextProvider i18n={appI18n}>

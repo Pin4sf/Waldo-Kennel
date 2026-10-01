@@ -53,4 +53,11 @@ describe("SettingsDialog", () => {
 		await userEvent.keyboard("{Escape}");
 		expect(useUiStore.getState().settingsModal).toEqual({ scope: "project", projectId: "proj-1" });
 	});
+ it("reaches Connect to Waldo by keyboard and Escape dismisses the modal", async () => {
+  useUiStore.getState().openGlobalSettings();render(<SettingsDialog />);
+  const link=await screen.findByRole("button",{name:"Connect to Waldo"});link.focus();await userEvent.keyboard("{Enter}");
+  expect(screen.getByRole("heading",{name:"Connect to Waldo"})).toBeInTheDocument();expect(link).toHaveAttribute("aria-current","page");
+  await userEvent.keyboard("{Escape}");expect(useUiStore.getState().settingsModal).toBeNull();
+ });
+
 });

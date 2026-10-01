@@ -1,5 +1,5 @@
-import { Bot, CircleHelp, GitBranch, Inbox, MonitorCog, RefreshCw, Settings2, TriangleAlert, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Bot, CircleHelp, GitBranch, Inbox, Link2, MonitorCog, RefreshCw, Settings2, TriangleAlert, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { GlobalSettingsForm, type GlobalSettingsSection } from "./GlobalSettingsForm";
 import {
@@ -34,7 +34,7 @@ function initialProjectSaveState(): ProjectSettingsSaveState {
 	};
 }
 
-export function SettingsDialog() {
+export function SettingsDialog({ waldoPreview, initialGlobalSection = "general" }: { waldoPreview?: ReactNode; initialGlobalSection?: Exclude<GlobalSettingsSection, "all"> } = {}) {
 	const { t } = useTranslation();
 	const settingsModal = useUiStore((state) => state.settingsModal);
 	const closeSettings = useUiStore((state) => state.closeSettings);
@@ -55,6 +55,7 @@ export function SettingsDialog() {
 
 	const globalSections: Array<{ id: Exclude<GlobalSettingsSection, "all">; label: string; icon: typeof Settings2 }> = [
 		{ id: "general", label: t("settings.general"), icon: Settings2 },
+		{ id: "waldo", label: t("settings.waldo.title"), icon: Link2 },
 		{ id: "reasoning", label: t("settings.reasoning.navigation"), icon: Bot },
 		{ id: "updates", label: t("settings.updates"), icon: RefreshCw },
 		{ id: "help", label: t("settings.help"), icon: CircleHelp },
@@ -68,7 +69,8 @@ export function SettingsDialog() {
 	];
 
 	const isProjectSettings = displaySettings?.scope === "project";
-	const [activeSection, setActiveSection] = useState<Exclude<GlobalSettingsSection, "all">>("general");
+	const [activeSection, setActiveSection] = useState<Exclude<GlobalSettingsSection, "all">>(initialGlobalSection);
+	const isWaldoSettings = displaySettings?.scope === "global" && activeSection === "waldo";
 	const [activeProjectSection, setActiveProjectSection] = useState<ProjectSettingsSection>("general");
 	const [projectSaveState, setProjectSaveState] = useState<ProjectSettingsSaveState>(initialProjectSaveState);
 
@@ -97,12 +99,12 @@ export function SettingsDialog() {
 	};
 
 	useEffect(() => {
-		if (settingsModal?.scope === "global") setActiveSection("general");
+		if (settingsModal?.scope === "global") setActiveSection(initialGlobalSection);
 		if (settingsModal?.scope === "project") {
 			setActiveProjectSection("general");
 			setProjectSaveState(initialProjectSaveState());
 		}
-	}, [settingsModal]);
+	}, [settingsModal, initialGlobalSection]);
 
 	return (
 		<>
@@ -111,14 +113,15 @@ export function SettingsDialog() {
 				className={cn(
 					settingsDialogContentClass,
 					"h-(--size-settings-dialog-height) w-(--size-settings-dialog-wide) max-h-none origin-center overflow-hidden p-0",
+					isWaldoSettings && "h-[min(var(--size-settings-dialog-height),calc(100svh-var(--space-4)))] w-[min(var(--size-settings-dialog-wide),calc(100vw-var(--space-4)))]",
 				)}
 				showCloseButton={false}
 			>
 				{displaySettings && (
-					<div className="flex h-full min-h-0">
-						<aside className="flex w-48 shrink-0 flex-col border-r border-(--color-border-settings-dialog-header) bg-card">
+					<div className={cn("flex h-full min-h-0", isWaldoSettings && "max-sm:flex-col")}>
+						<aside className={cn("flex w-48 shrink-0 flex-col border-r border-(--color-border-settings-dialog-header) bg-card", isWaldoSettings && "max-sm:w-full max-sm:border-r-0 max-sm:border-b")}>
 						<p className="px-3 pb-1 pt-3 text-2xs font-semibold tracking-wider text-muted-foreground/60">{t("settings.title")}</p>
-						<nav aria-label={t("settings.navSectionsAria")} className="flex flex-col gap-0.5 p-2 pt-0">
+						<nav aria-label={t("settings.navSectionsAria")} className={cn("flex flex-col gap-0.5 p-2 pt-0", isWaldoSettings && "max-sm:flex-row max-sm:overflow-x-auto max-sm:[&_button]:w-auto max-sm:[&_button]:shrink-0")}>
 							{isProjectSettings
 								? projectSections.map(({ id, label, icon }) => (
 										<SettingsNavItem
@@ -182,7 +185,7 @@ export function SettingsDialog() {
 					</aside>
 
 					{/* Main area — same bg as the app page */}
-					<div className="flex min-w-0 flex-1 flex-col bg-card">
+					<div className={cn("flex min-w-0 flex-1 flex-col bg-card", isWaldoSettings && "min-h-0")}>
 						<DialogHeader className={cn(settingsDialogHeaderClass, "flex h-auto shrink-0 flex-row items-center justify-between border-b-0")}>
 							<DialogTitle className="text-2xl font-bold text-foreground">{activeLabel}</DialogTitle>
 							<DialogDescription className="sr-only">
@@ -206,6 +209,8 @@ export function SettingsDialog() {
 							) : (
 								<GlobalSettingsForm
 									section={activeSection}
+									waldoOpen={settingsModal !== null}
+									waldoPreview={waldoPreview}
 									onOpenKeyboardShortcuts={openKeyboardShortcuts}
 								/>
 							)}
@@ -242,6 +247,7 @@ function SettingsNavItem({
 			aria-current={active ? "page" : undefined}
 			className={cn(
 				"flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium transition-[background-color,color,transform] duration-fast ease-out active:scale-press focus:outline-none focus-visible:outline-none focus-visible:ring-0",
+				Icon === Link2 && "focus-visible:shadow-[inset_0_0_0_2px_var(--ring)]",
 				active
 					? "bg-interactive-active text-foreground"
 					: "text-muted-foreground hover:bg-interactive-hover hover:text-foreground",
