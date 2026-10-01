@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { GeneralSettingsSection } from "./settings/GeneralSettingsSection";
 import { IslandSettingsSection } from "./settings/IslandSettingsSection";
@@ -10,14 +10,20 @@ import { ReasoningSettingsSection } from "./settings/ReasoningSettingsSection";
 import { RepositoryContextSettingsSection } from "./settings/RepositoryContextSettingsSection";
 import { useUiStore } from "../stores/ui-store";
 
-export type GlobalSettingsSection = "general" | "reasoning" | "updates" | "help" | "all";
+import { WaldoConnectionSection } from "./settings/WaldoConnectionSection";
+
+export type GlobalSettingsSection = "general" | "reasoning" | "updates" | "help" | "waldo" | "all";
 
 export function GlobalSettingsForm({
 	section = "all",
 	onOpenKeyboardShortcuts,
+	waldoOpen = true,
+	waldoPreview,
 }: {
 	section?: GlobalSettingsSection;
 	onOpenKeyboardShortcuts?: () => void;
+	waldoOpen?: boolean;
+	waldoPreview?: ReactNode;
 }) {
 	const { t } = useTranslation();
 	const [reportProblemOpen, setReportProblemOpen] = useState(false);
@@ -58,6 +64,7 @@ export function GlobalSettingsForm({
 						<IslandSettingsSection />
 					</>
 				)}
+				{(section === "all" || section === "waldo") && (waldoPreview ?? <WaldoConnectionSection open={waldoOpen} titleHidden={leadingTitleHidden} />)}
 				{(section === "all" || section === "updates") && <UpdatesSection titleHidden={leadingTitleHidden} />}
 				{(section === "all" || section === "reasoning") && (
 					<>
