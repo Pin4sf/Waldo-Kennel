@@ -28,6 +28,7 @@ import {
 	type UpdateCheckOptions,
 } from "./main/auto-updater";
 import { listFeatureBuilds, getActiveFeatureBuild } from "./main/feature-builds";
+import { createWaldoBridgeHandlers } from "./main/waldo-bridge-handler";
 import { createAttemptReplacementHandler } from "./main/owner-command-handler";
 import { createHarnessAuthorityHandler } from "./main/harness-authority-handler";
 import {
@@ -737,6 +738,7 @@ function ensureShellEnv(): Promise<void> {
 const appRunId = process.env.KENNEL_APP_RUN_ID ?? `apprun-${randomUUID()}`;
 const browserRuntimeToken = randomBytes(32).toString("base64url");
 const ownerCommandToken = randomBytes(32).toString("base64url");
+let bridgeLocalToken = randomBytes(32).toString("base64url");
 
 function daemonEnv(forceKeep = keepDaemonAlive(process.env)): NodeJS.ProcessEnv {
 	// KENNEL_OWNER is the daemon's durable spawn-mode record: the daemon writes it
@@ -789,7 +791,13 @@ function daemonEnv(forceKeep = keepDaemonAlive(process.env)): NodeJS.ProcessEnv 
 	if (process.platform === "win32") {
 		return { ...process.env, ...devExtras, ...telemetryOverrides(), ...ownerTag };
 	}
-	return buildDaemonEnv(process.env, cachedShellEnv, { ...devExtras, ...telemetryOverrides(), ...ownerTag });
+	// Bridge boot configuration is trusted only from this main process, never
+ // from a separately probed login-shell environment.
+ const shellEnv = cachedShellEnv ? { ...cachedShellEnv } : null;
+ for (const key of ["KENNEL_WALDO_BRIDGE_ENABLED", "KENNEL_WALDO_ORIGIN", "KENNEL_WALDO_OWNER_ID"]) {
+  if (shellEnv) delete shellEnv[key];
+ }
+ return buildDaemonEnv(process.env, shellEnv, { ...devExtras, ...telemetryOverrides(), ...ownerTag });
 }
 
 function pathKey(value: string): string {
@@ -1316,6 +1324,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	}
 	let child: ChildProcess;
 	try {
+		bridgeLocalToken = randomBytes(32).toString("base64url");
 		child = spawn(launch.command, launch.args, {
 			cwd: launch.cwd,
 			env: daemonEnv(keep),
@@ -1355,6 +1364,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 		const startupSecrets = Buffer.from(JSON.stringify({
 			browserRuntimeToken,
 			ownerCommandToken,
+			bridgeLocalToken,
 			appRunId,
 		}), "utf8").toString("base64url");
 		child.stdin.end(`${startupSecrets}\n`);
@@ -1618,6 +1628,15 @@ ipcMain.handle("daemon:restart", async () => {
 		return reportDaemonRestartFailure(error);
 	}
 });
+const waldoBridgeHandlers = createWaldoBridgeHandlers({
+ getShellWebContents,
+ getDaemonConnection: () => daemonStatus.state === "ready" && Number.isInteger(daemonStatus.port) ? { port: Number(daemonStatus.port) } : null,
+ bridgeLocalToken: () => bridgeLocalToken,
+ fetch: globalThis.fetch,
+});
+ipcMain.handle("waldoBridge:status", waldoBridgeHandlers.status);
+ipcMain.handle("waldoBridge:pair", waldoBridgeHandlers.pair);
+
 ipcMain.handle("ownerCommand:approveAttemptReplacement", createAttemptReplacementHandler({
 	getWindow: () => mainWindow,
 	getShellWebContents,

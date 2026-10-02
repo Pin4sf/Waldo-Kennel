@@ -91,6 +91,9 @@ func device() domain.DeviceBridgeDevice {
 }
 func newController(t *testing.T, m *memoryRepo, p Pairer, f Factory) *Controller {
 	t.Helper()
+	if f == nil {
+		f = pairingReadyFactory{}
+	}
 	c, e := New("owner-1", "https://backend.test", m, p, f)
 	if e != nil {
 		t.Fatal(e)
@@ -416,4 +419,86 @@ func TestFailedDurableRevokeStaysLocallyBlockedAndReportsError(t *testing.T) {
 	}
 	// Do not claim process-restart safety on failed persistence: production must
 	// implement fencing and repair. Test only proves this controller stays closed.
+}
+
+func (m *memoryRepo) Checkpoint(_ context.Context, owner, attempt string, cp devicebridge.PairingRecoveryError) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if owner != m.r.OwnerID || attempt != m.r.Attempt || cp.OwnerID != owner {
+		return ErrInvalid
+	}
+	safe := cp
+	m.r.Checkpoint = &safe
+	return nil
+}
+
+type repositoryWithoutCheckpoint struct{ Repository }
+
+func TestControllerPairFailsClosedWithoutCheckpointer(t *testing.T) {
+	m := &memoryRepo{}
+	var called bool
+	c, e := New("owner-1", "https://backend.test", repositoryWithoutCheckpoint{m}, pairFunc(func(context.Context, devicebridge.PairRequest) (domain.DeviceBridgeDevice, error) {
+		called = true
+		return device(), nil
+	}), nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if !errors.Is(c.Pair(context.Background(), code(), "Mac", []string{"machine_state_query"}), ErrNotReady) || m.next != 0 || called {
+		t.Fatal("did not fail closed")
+	}
+}
+func TestControllerCheckpointCarriesOnlySafeFields(t *testing.T) {
+	m := &memoryRepo{}
+	ctx, cancel := context.WithCancel(context.Background())
+	c := newController(t, m, pairFunc(func(_ context.Context, r devicebridge.PairRequest) (domain.DeviceBridgeDevice, error) {
+		cancel()
+		e := r.Checkpoint(ctx, devicebridge.PairingRecoveryError{OwnerID: "owner-1", KeyCustodyRef: "opaque-ref", PublicKey: "public", DeviceID: "excluded", Cause: errors.New(code() + "Mac")})
+		if e != nil {
+			t.Fatal(e)
+		}
+		m.mu.Lock()
+		cp := *m.r.Checkpoint
+		m.mu.Unlock()
+		if cp.Cause != nil || cp.DeviceID != "" || cp.OwnerID != "owner-1" || cp.KeyCustodyRef != "opaque-ref" || cp.PublicKey != "public" {
+			t.Fatal("unsafe checkpoint")
+		}
+		return domain.DeviceBridgeDevice{}, errors.New("interrupted")
+	}), nil)
+	if !errors.Is(c.Pair(ctx, code(), "Mac", []string{"machine_state_query"}), ErrBlocked) {
+		t.Fatal("pair not blocked")
+	}
+}
+
+type pairingReadyFactory struct{}
+
+func (pairingReadyFactory) Ready(context.Context) error { return nil }
+func (pairingReadyFactory) New(context.Context, string, domain.DeviceBridgeDevice, func(devicebridge.ConnectionState)) (Session, error) {
+	return nil, ErrNotReady
+}
+
+func TestControllerBlocksResponseWithDifferentOwnerID(t *testing.T) {
+	m := &memoryRepo{}
+	c := newController(t, m, pairFunc(func(context.Context, devicebridge.PairRequest) (domain.DeviceBridgeDevice, error) {
+		d := device()
+		d.OwnerID = "other"
+		return d, nil
+	}), nil)
+	if !errors.Is(c.Pair(context.Background(), code(), "Mac", []string{"machine_state_query"}), ErrBlocked) || m.r.Attempt == "" || m.r.Phase != Recovery || m.r.Device.DeviceID != "" {
+		t.Fatal("different owner published")
+	}
+}
+func TestStatusReadyReflectsFactory(t *testing.T) {
+	for _, kind := range []string{"nil", "not-ready", "ready"} {
+		c := newController(t, &memoryRepo{}, pairFunc(goodPair), nil)
+		if kind == "nil" {
+			c.factory = nil
+		} else {
+			c.factory = &factory{ready: kind == "ready"}
+		}
+		s, e := c.Status(context.Background())
+		if e != nil || s.Ready != (kind == "ready") || s.Phase != Unpaired {
+			t.Fatalf("%s %+v %v", kind, s, e)
+		}
+	}
 }

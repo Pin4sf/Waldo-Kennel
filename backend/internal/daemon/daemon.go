@@ -60,6 +60,7 @@ import (
 	waldovc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/waldoconversation"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/skillassets"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/activationrepo"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/supervisorcap"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/terminal"
 )
@@ -82,6 +83,7 @@ func Run() error {
 	log := newLogger()
 	var browserRuntimeToken string
 	var ownerAuthority *ownercommand.Authority
+	var bridgeAuthority *ownercommand.BridgeAuthority
 	if os.Getenv(ownercommand.StartupSecretsStdinEnv) == "1" {
 		secrets, readErr := ownercommand.ReadStartupSecrets(os.Stdin)
 		if readErr != nil {
@@ -89,6 +91,7 @@ func Run() error {
 		}
 		browserRuntimeToken = secrets.BrowserRuntimeToken
 		ownerAuthority = ownercommand.NewAuthority(secrets.OwnerCommandToken, secrets.AppRunID)
+		bridgeAuthority = ownercommand.NewBridgeAuthority(secrets.BridgeLocalToken)
 	} else if os.Getenv(browserruntime.RuntimeTokenStdinEnv) == "1" {
 		browserRuntimeToken, err = browserruntime.ReadRuntimeToken(os.Stdin)
 		if err != nil {
@@ -568,6 +571,12 @@ func Run() error {
 	connectionKernel := harnessconnection.New(store)
 	pairingCoordinator := harnesspairing.New(store, connectionKernel)
 	harnessAuthoritySvc := harnessauthority.New(store, pairingCoordinator, connectionKernel).WithProjectScope(store)
+	bridge := wireBridge(cfg.DataDir, os.Getenv, bridgeAuthority, log, activationrepo.OpenDedicated)
+	defer bridge.close()
+	var bridgeHandler http.Handler
+	if bridge != nil {
+		bridgeHandler = bridge.handler
+	}
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
 		Projects:            projectSvc,
 		Agents:              agentSvc,
@@ -609,6 +618,8 @@ func Run() error {
 		PreviewServer:            managedPreview,
 		SessionCapabilities:      browserAuthority,
 		OwnerAuthority:           ownerAuthority,
+		BridgeHandler:            bridgeHandler,
+		BridgeAuthority:          bridgeAuthority,
 		ReplacementDecisions:     store,
 		PairingCoordinator:       pairingCoordinator,
 		OwnerProofKernel:         ownerproof.New(store),
@@ -687,6 +698,9 @@ func Run() error {
 		}()
 	}
 
+	if bridge != nil {
+		go bridge.bootWhenServing(ctx, srv.Addr().String())
+	}
 	runErr := srv.Run(ctx)
 
 	// Both graceful shutdown paths (SIGTERM and POST /shutdown) funnel through
@@ -700,6 +714,7 @@ func Run() error {
 	// via defer) avoids the LIFO trap where a Stop() that blocks on ctx-cancel
 	// runs before the cancel: a non-signal exit path would hang otherwise.
 	stop()
+	bridge.close()
 	switchStopCtx, switchCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	if err := sessMgr.WaitAgentSwitchWorkers(switchStopCtx); err != nil {
 		log.Error("agent switch worker shutdown", "err", err)

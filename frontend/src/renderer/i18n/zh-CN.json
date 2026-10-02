@@ -2789,5 +2789,7 @@
 	"settings.waldo.previewState": "预览状态",
 	"settings.waldo.previewLocale": "预览语言",
 	"settings.waldo.previewOpen": "打开设置",
-	"settings.waldo.syntheticLabel": "合成 Mac"
+	"settings.waldo.syntheticLabel": "合成 Mac",
+	"settings.waldo.unknownAnswers": "已连接，但在此版本中，Mac 对机器状态查询的回答为 unknown，且无法确认本地通知是否已显示（delivery_unknown）。",
+	"settings.waldo.status.failedLive": "无法完成配对。请检查连接状态后再试。"
 }

@@ -80,6 +80,11 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 					}),
 					scanImportFolder: async ({ path }: { path: string }) => ({ path, repos: [] }),
 					checkAncestorRepo: async () => undefined,
+					approveAttemptReplacement: async () => { throw new Error("Owner approval requires the desktop app."); },
+					approveHarnessAuthority: async () => { throw new Error("Harness approval requires the desktop app."); },
+					discoverCodex: async () => ({state:"not_found",message:"Codex discovery requires the desktop app."}),
+					getCodexPairing: async () => ({state:"unpaired"}),
+					pairCodex: async () => { throw new Error("Codex pairing requires the desktop app."); },
 					onNewSessionShortcut: unsubscribe,
 					onKeyboardShortcutsHelp: unsubscribe,
 					onNewShellTerminalShortcut: unsubscribe,
@@ -524,6 +529,11 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 					}),
 					scanImportFolder: async ({ path }: { path: string }) => ({ path, repos: [] }),
 					checkAncestorRepo: async () => undefined,
+					approveAttemptReplacement: async () => { throw new Error("Owner approval requires the desktop app."); },
+					approveHarnessAuthority: async () => { throw new Error("Harness approval requires the desktop app."); },
+					discoverCodex: async () => ({state:"not_found",message:"Codex discovery requires the desktop app."}),
+					getCodexPairing: async () => ({state:"unpaired"}),
+					pairCodex: async () => { throw new Error("Codex pairing requires the desktop app."); },
 					onNewSessionShortcut: unsubscribe,
 					onKeyboardShortcutsHelp: unsubscribe,
 					onNewShellTerminalShortcut: unsubscribe,
@@ -658,4 +668,27 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 		},
 		{ version, daemonPort, projectId, projectName, platform, workers },
 	);
+}
+
+/** Synthetic preload boundary only; never calls a daemon or Waldo. */
+export async function installFakeWaldoBridge(page: Page, outcome: "online" | "recovery_required"): Promise<void> {
+ await installFakeBridge(page);
+ await page.addInitScript(({outcome}) => {
+  const calls: Array<{method:string;input?:unknown}> = [];
+  let paired = false;
+  const bridge: NonNullable<AoBridge["waldoBridge"]> = {
+   status: async () => {
+    calls.push({method:"status"});
+    return {ok:true,ready:true,state:paired ? "online":"unpaired",...(paired ? {label:"Synthetic Mac",deviceId:"synthetic-device"}:{})};
+   },
+   pair: async input => {
+    calls.push({method:"pair",input});
+    if (outcome === "recovery_required") return {ok:false,reason:"recovery_required"};
+    paired = true;return {ok:true};
+   },
+  };
+  const shell = (window as unknown as {kennel?:AoBridge}).kennel;
+  if(shell)shell.waldoBridge = bridge;
+  (window as unknown as {__waldoCalls:typeof calls}).__waldoCalls = calls;
+ }, {outcome});
 }

@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { validWaldoCode, validWaldoLabel } from "./waldo-connection";
+import { pairResultToState, statusToState, validWaldoCode, validWaldoLabel } from "./waldo-connection";
+import type { WaldoBridgeStatusResult } from "../../main/waldo-bridge-handler";
+
+describe("Waldo IPC result mapping", () => {
+ it("maps every status result: not ok, ready false, unknown state, unpaired, pairing, recovery_required, offline, online", () => {
+  const unavailable = {kind:"unavailable"};
+  for (const result of [{ok:false,reason:"failed"},{ok:false,reason:"unavailable"},{ok:true,state:"unpaired",ready:false},{ok:true,state:"future",ready:true}] as WaldoBridgeStatusResult[]) expect(statusToState(result)).toStrictEqual(unavailable);
+  for (const state of ["unpaired","pairing","recovery_required"]) expect(statusToState({ok:true,state,ready:true})).toStrictEqual({kind:state});
+  for (const transport of ["offline","online"]) expect(statusToState({ok:true,state:transport,ready:true,deviceId:"synthetic-device",label:"Synthetic Mac"})).toStrictEqual({kind:"paired",transport,deviceId:"synthetic-device",label:"Synthetic Mac"});
+ });
+ it.each(["recovery_required","unavailable","failed"] as const)("maps pair failure %s", reason => {
+  expect(pairResultToState({ok:false,reason})).toStrictEqual(reason === "recovery_required" ? {kind:reason} : {kind:"error",reason});
+ });
+ it("never assumes pairing from an ok pair reply",()=>expect(pairResultToState({ok:true})).toStrictEqual({kind:"unavailable"}));
+});
 
 describe("Waldo boundary validation (synthetic inputs)", () => {
  it("accepts canonical unpadded 32-byte codes and rejects pad-bit aliases", () => {

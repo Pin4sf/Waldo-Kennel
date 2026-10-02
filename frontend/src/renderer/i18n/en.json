@@ -2788,5 +2788,7 @@
 	"settings.waldo.previewState": "Preview state",
 	"settings.waldo.previewLocale": "Preview language",
 	"settings.waldo.previewOpen": "Open Settings",
-	"settings.waldo.syntheticLabel": "Synthetic Mac"
+	"settings.waldo.syntheticLabel": "Synthetic Mac",
+	"settings.waldo.unknownAnswers": "Connected, but in this build the Mac answers machine-state queries as unknown and cannot confirm that a local notification was shown (delivery_unknown).",
+	"settings.waldo.status.failedLive": "Could not complete pairing. Check the connection status before trying again."
 }

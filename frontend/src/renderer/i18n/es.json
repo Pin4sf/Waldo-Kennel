@@ -2823,5 +2823,7 @@
 	"settings.waldo.previewState": "Estado de vista previa",
 	"settings.waldo.previewLocale": "Idioma de vista previa",
 	"settings.waldo.previewOpen": "Abrir ajustes",
-	"settings.waldo.syntheticLabel": "Mac sintético"
+	"settings.waldo.syntheticLabel": "Mac sintético",
+	"settings.waldo.unknownAnswers": "Conectado, pero en esta versión el Mac responde unknown a las consultas del estado de la máquina y no puede confirmar que se haya mostrado una notificación local (delivery_unknown).",
+	"settings.waldo.status.failedLive": "No se pudo completar el emparejamiento. Comprueba el estado de la conexión antes de volver a intentarlo."
 }

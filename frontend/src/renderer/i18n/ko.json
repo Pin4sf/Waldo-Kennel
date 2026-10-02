@@ -2807,5 +2807,7 @@
 	"settings.waldo.previewState": "미리 보기 상태",
 	"settings.waldo.previewLocale": "미리 보기 언어",
 	"settings.waldo.previewOpen": "설정 열기",
-	"settings.waldo.syntheticLabel": "합성 Mac"
+	"settings.waldo.syntheticLabel": "합성 Mac",
+	"settings.waldo.unknownAnswers": "연결되었지만 이 빌드에서 Mac은 컴퓨터 상태 조회에 unknown으로 응답하며 로컬 알림이 표시되었는지 확인할 수 없습니다(delivery_unknown).",
+	"settings.waldo.status.failedLive": "페어링을 완료하지 못했습니다. 다시 시도하기 전에 연결 상태를 확인하세요."
 }

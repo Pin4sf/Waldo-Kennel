@@ -1,4 +1,6 @@
-// View models only. No backend adapter, credential storage, or activation.
+import type { WaldoBridgePairResult, WaldoBridgeStatusResult } from "../../main/waldo-bridge-handler";
+
+// Pure view models and IPC result mapping.
 export type WaldoConnectionState =
  | { kind: "unavailable" | "unpaired" | "pairing" | "recovery_required" }
  | { kind: "paired"; transport: "offline" | "online"; deviceId?: string; label?: string }
@@ -23,4 +25,17 @@ export function validWaldoLabel(label: string): boolean {
  }
  const size = new TextEncoder().encode(label).length;
  return size >= 1 && size <= 120;
+}
+
+export function statusToState(result: WaldoBridgeStatusResult): WaldoConnectionState {
+ if (!result.ok || !result.ready) return {kind:"unavailable"};
+ switch(result.state) {
+  case "unpaired": case "pairing": case "recovery_required": return {kind:result.state};
+  case "offline": case "online": return {kind:"paired",transport:result.state,...(result.deviceId !== undefined ? {deviceId:result.deviceId}:{}),...(result.label !== undefined ? {label:result.label}:{})};
+  default: return {kind:"unavailable"};
+ }
+}
+export function pairResultToState(result: WaldoBridgePairResult): WaldoConnectionState {
+ if (result.ok) return {kind:"unavailable"}; // Success requires a fresh status.
+ return result.reason === "recovery_required" ? {kind:"recovery_required"} : {kind:"error",reason:result.reason};
 }

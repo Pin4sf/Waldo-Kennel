@@ -62,3 +62,24 @@ func TestStartupSecretsUnavailableStdinFailsClosed(t *testing.T) {
 		t.Fatal("unavailable stdin was accepted")
 	}
 }
+
+func TestStartupSecretsOptionalBridgeToken(t *testing.T) {
+	for _, token := range []string{"", browserToken, "short", strings.Repeat("A", 44), strings.Repeat("*", 43), strings.Repeat("A", 42)} {
+		raw := `{"browserRuntimeToken":"` + browserToken + `","ownerCommandToken":"` + ownerToken + `","appRunId":"apprun-1"`
+		if token != "" {
+			raw += `,"bridgeLocalToken":"` + token + `"`
+		}
+		input := envelope(raw + `}`)
+		if len(input) > 2048 {
+			t.Fatal("envelope exceeds cap")
+		}
+		s, e := ReadStartupSecrets(strings.NewReader(input))
+		valid := token == "" || token == browserToken
+		if (e == nil) != valid {
+			t.Fatal("optional token validation")
+		}
+		if valid && s.BridgeLocalToken != token {
+			t.Fatal("optional token lost")
+		}
+	}
+}
