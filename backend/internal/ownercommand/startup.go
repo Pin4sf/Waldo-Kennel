@@ -15,6 +15,7 @@ import (
 const StartupSecretsStdinEnv = "KENNEL_STARTUP_SECRETS_STDIN" //nolint:gosec // marker, not a credential
 
 type StartupSecrets struct {
+	BridgeLocalToken    string `json:"bridgeLocalToken,omitempty"`
 	BrowserRuntimeToken string `json:"browserRuntimeToken"`
 	OwnerCommandToken   string `json:"ownerCommandToken"`
 	AppRunID            string `json:"appRunId"`
@@ -41,6 +42,9 @@ func ReadStartupSecrets(r io.Reader) (StartupSecrets, error) {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&s); err != nil || dec.Decode(&struct{}{}) != io.EOF {
 		return StartupSecrets{}, errors.New("startup secret envelope was invalid")
+	}
+	if s.BridgeLocalToken != "" && (!validToken(s.BridgeLocalToken) || len(s.BridgeLocalToken) != 43) {
+		return StartupSecrets{}, errors.New("startup secret envelope was incomplete")
 	}
 	if !validToken(s.BrowserRuntimeToken) || !validToken(s.OwnerCommandToken) || !validAppRunID(s.AppRunID) {
 		return StartupSecrets{}, errors.New("startup secret envelope was incomplete")

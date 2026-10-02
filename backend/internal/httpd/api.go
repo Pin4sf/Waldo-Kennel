@@ -70,6 +70,8 @@ type APIDeps struct {
 	DeviceRoster controllers.DeviceRoster
 	DeviceLive   controllers.LiveSet
 
+	BridgeHandler            http.Handler
+	BridgeAuthority          *ownercommand.BridgeAuthority
 	OwnerAuthority           *ownercommand.Authority
 	ReplacementDecisions     ports.AttemptReplacementDecisionStore
 	PairingCoordinator       *harnesspairing.Coordinator

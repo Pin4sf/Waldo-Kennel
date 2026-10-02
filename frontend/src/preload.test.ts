@@ -189,3 +189,17 @@ describe("preload owner-command bridge", () => {
 		expect(electronMocks.invoke).toHaveBeenCalledWith("ownerCommand:approveAttemptReplacement", input);
 	});
 });
+
+describe("preload Waldo bridge", () => {
+ it("invokes exactly status and pair channels and exposes no credential", async () => {
+  const surface = exposedBridge().waldoBridge!;
+  expect(Object.keys(surface).sort()).toStrictEqual(["pair", "status"]);
+  await surface.status();
+  expect(electronMocks.invoke).toHaveBeenCalledExactlyOnceWith("waldoBridge:status");
+  electronMocks.invoke.mockClear();
+  const input = { code: "A".repeat(43), label: "Mac", capabilities: ["notify_local"] };
+  await surface.pair(input);
+  expect(electronMocks.invoke).toHaveBeenCalledExactlyOnceWith("waldoBridge:pair", input);
+  expect(JSON.stringify(exposedBridge())).not.toMatch(/bridgeLocalToken|ownerCommandToken/);
+ });
+});

@@ -31,6 +31,8 @@ import (
 // callback that requests a graceful shutdown.
 type ControlDeps struct {
 	RequestShutdown      func()
+	BridgeHandler        http.Handler
+	BridgeAuthority      *ownercommand.BridgeAuthority
 	OwnerAuthority       *ownercommand.Authority
 	ReplacementDecisions ports.AttemptReplacementDecisionStore
 	PairingCoordinator   *harnesspairing.Coordinator
@@ -62,6 +64,7 @@ func NewRouterWithControl(cfg config.Config, log *slog.Logger, termMgr *terminal
 	api := NewAPI(cfg, deps)
 
 	r.Use(middleware.RequestID)
+	r.Use(bridgeLocalGuard)
 	r.Use(middleware.RealIP)
 	r.Use(requestLogger(log, deps.Telemetry))
 	r.Use(recoverTelemetry(log, deps.Telemetry))
@@ -77,6 +80,7 @@ func NewRouterWithControl(cfg config.Config, log *slog.Logger, termMgr *terminal
 	mountHealth(r, cfg)
 	mountTerminalMux(r, termMgr, log)
 	mountControl(r, control)
+	mountBridge(r, control.BridgeHandler, control.BridgeAuthority)
 	mountOwnerCommands(r, control.OwnerAuthority, control.ReplacementDecisions, control.PairingCoordinator, control.OwnerProofKernel, control.HarnessAuthority, control.HarnessDiscovery, control.HarnessProtocol)
 	mountTelemetry(r, cfg, deps.Telemetry)
 	mountMobile(r, deps.Mobile)

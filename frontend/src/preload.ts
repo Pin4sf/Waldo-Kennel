@@ -1,3 +1,4 @@
+import type { WaldoBridgeStatusResult, WaldoBridgePairResult, WaldoBridgePairInput } from "./main/waldo-bridge-handler";
 import { contextBridge, ipcRenderer } from "electron";
 import { CLOSE_SHELL_TERMINAL_SHORTCUT_CHANNEL, FOCUS_TERMINAL_SHORTCUT_CHANNEL, KEYBOARD_SHORTCUTS_HELP_CHANNEL, NEXT_SESSION_SHORTCUT_CHANNEL, NEXT_TAB_SHORTCUT_CHANNEL, NEW_SESSION_SHORTCUT_CHANNEL, NEW_SHELL_TERMINAL_SHORTCUT_CHANNEL, OPEN_SETTINGS_SHORTCUT_CHANNEL, PREVIOUS_SESSION_SHORTCUT_CHANNEL, PREVIOUS_TAB_SHORTCUT_CHANNEL, SET_CLOSE_SHELL_TERMINAL_SHORTCUT_ENABLED_CHANNEL, SET_TERMINAL_FOCUSED_CHANNEL, TERMINAL_FONT_SIZE_SHORTCUT_CHANNEL, type KeybindingOverrides } from "./shared/shortcuts";
 import type { CodexDiscoveryState, CodexPairingProposal, CodexPairingState } from "./shared/provider-pairing";
@@ -85,6 +86,10 @@ export type ImportFolderScan = {
 };
 
 const api = {
+ waldoBridge: {
+ status: () => ipcRenderer.invoke("waldoBridge:status") as Promise<WaldoBridgeStatusResult>,
+ pair: (input: WaldoBridgePairInput) => ipcRenderer.invoke("waldoBridge:pair", input) as Promise<WaldoBridgePairResult>,
+ },
 	app: {
 		getVersion: () => ipcRenderer.invoke("app:getVersion") as Promise<string>,
 		chooseDirectory: (title?: string) => ipcRenderer.invoke("app:chooseDirectory", title) as Promise<string | null>,
@@ -405,4 +410,4 @@ const api = {
 
 contextBridge.exposeInMainWorld("kennel", api);
 
-export type AoBridge = typeof api;
+export type AoBridge = Omit<typeof api, "waldoBridge"> & { waldoBridge?: typeof api.waldoBridge };

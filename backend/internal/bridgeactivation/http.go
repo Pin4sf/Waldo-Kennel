@@ -2,6 +2,7 @@ package bridgeactivation
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -55,6 +56,9 @@ func Handler(c *Controller, authorize Authorize) http.Handler {
 			}
 			if err = c.Pair(r.Context(), req.Code, req.Label, req.Capabilities); err != nil {
 				status := http.StatusConflict
+				if errors.Is(err, ErrNotReady) {
+					status = http.StatusServiceUnavailable
+				}
 				if err == ErrInvalid {
 					status = http.StatusBadRequest
 				}
