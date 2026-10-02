@@ -69,6 +69,7 @@ func (e *PairingRecoveryError) Unwrap() error { return e.Cause }
 type PairRequest struct {
 	OwnerID, Code, Label string
 	Capabilities         []string
+	Checkpoint           func(context.Context, PairingRecoveryError) error
 }
 
 func NewPairingCoordinator(store PairingStore, keys DeviceKeyCustody, client *http.Client, logger *slog.Logger, redeemURL string) (*PairingCoordinator, error) {
@@ -111,6 +112,12 @@ func (p *PairingCoordinator) Pair(ctx context.Context, req PairRequest) (domain.
 	ref, err := p.keys.Put(ctx, private)
 	if err != nil {
 		return empty, ErrPairingUnavailable
+	}
+	if req.Checkpoint != nil {
+		if err := req.Checkpoint(ctx, PairingRecoveryError{OwnerID: req.OwnerID, KeyCustodyRef: ref, PublicKey: base64.RawURLEncoding.EncodeToString(public)}); err != nil {
+			_ = p.keys.Clear(ctx, ref)
+			return empty, ErrPairingUnavailable
+		}
 	}
 	ambiguous := func(cause error) (domain.DeviceBridgeDevice, error) {
 		p.recovery = &PairingRecoveryError{Cause: cause, KeyCustodyRef: ref, PublicKey: base64.RawURLEncoding.EncodeToString(public), OwnerID: req.OwnerID}

@@ -270,3 +270,30 @@ func (r *Repository) VerifyClaim(ctx context.Context, owner string, id domain.De
 		return nil
 	})
 }
+
+var _ bridgeactivation.Checkpointer = (*Repository)(nil)
+
+// Checkpoint retains the first custody locator without releasing the reservation.
+// A different locator is a conflicting key generation and may not overwrite it.
+func (r *Repository) Checkpoint(ctx context.Context, owner, attempt string, cp devicebridge.PairingRecoveryError) error {
+	return r.immediate(ctx, func(c *sql.Conn) error {
+		v, e := read(ctx, c, owner)
+		if e != nil && !errors.Is(e, sql.ErrNoRows) {
+			return e
+		}
+		if e != nil || attempt == "" || v.attempt != attempt || v.phase != "pending" {
+			return fmt.Errorf("checkpoint: %w", ErrAttemptMismatch)
+		}
+		if cp.OwnerID != owner || cp.KeyCustodyRef == "" || cp.PublicKey == "" {
+			return domain.ErrDeviceBridgeInvalid
+		}
+		if v.ref != "" || v.public != "" {
+			if v.ref != cp.KeyCustodyRef || v.public != cp.PublicKey {
+				return domain.ErrDeviceBridgeConflict
+			}
+			return nil
+		}
+		_, e = c.ExecContext(ctx, `UPDATE device_bridge_activations SET checkpoint_key_custody_ref=?,checkpoint_public_key=?,updated_at=? WHERE owner_id=?`, cp.KeyCustodyRef, cp.PublicKey, time.Now().UTC(), owner)
+		return e
+	})
+}

@@ -62,6 +62,11 @@ type Pairer interface {
 	Pair(context.Context, devicebridge.PairRequest) (domain.DeviceBridgeDevice, error)
 }
 
+// Checkpointer durably retains only safe custody locators before redeem.
+type Checkpointer interface {
+	Checkpoint(context.Context, string, string, devicebridge.PairingRecoveryError) error
+}
+
 type Session interface{ Run(context.Context) error }
 
 // Factory must bind sessions to the stored owner, device, pinned origin and key
@@ -130,6 +135,10 @@ func (c *Controller) Pair(ctx context.Context, code, label string, capabilities 
 		return ErrInvalid
 	}
 	// Do not persist code. A durable reservation comes before any network call.
+	cp, ok := c.repo.(Checkpointer)
+	if !ok {
+		return ErrNotReady
+	}
 	r, err := c.repo.Reserve(ctx, c.owner)
 	if err != nil {
 		return err
@@ -137,7 +146,10 @@ func (c *Controller) Pair(ctx context.Context, code, label string, capabilities 
 	if r.OwnerID != c.owner || r.Attempt == "" {
 		return ErrInvalid
 	}
-	d, err := c.pairer.Pair(ctx, devicebridge.PairRequest{OwnerID: c.owner, Code: code, Label: label, Capabilities: append([]string(nil), capabilities...)})
+	d, err := c.pairer.Pair(ctx, devicebridge.PairRequest{OwnerID: c.owner, Code: code, Label: label, Capabilities: append([]string(nil), capabilities...), Checkpoint: func(_ context.Context, observed devicebridge.PairingRecoveryError) error {
+		safe := devicebridge.PairingRecoveryError{OwnerID: observed.OwnerID, KeyCustodyRef: observed.KeyCustodyRef, PublicKey: observed.PublicKey}
+		return cp.Checkpoint(context.WithoutCancel(ctx), c.owner, r.Attempt, safe)
+	}})
 	if err != nil {
 		var checkpoint *devicebridge.PairingRecoveryError
 		var observed *devicebridge.PairingRecoveryError
