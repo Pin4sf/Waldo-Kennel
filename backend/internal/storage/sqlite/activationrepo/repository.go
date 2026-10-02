@@ -54,6 +54,25 @@ func (r *Repository) immediate(ctx context.Context, fn func(*sql.Conn) error) er
 	return err
 }
 
+// readOnly uses a deferred BEGIN snapshot. In WAL mode a held reader never
+// owns the writer reservation needed by the device store's ClearPaired.
+func (r *Repository) readOnly(ctx context.Context, fn func(*sql.Conn) error) error {
+	c, err := r.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	if _, err = c.ExecContext(ctx, "BEGIN"); err != nil {
+		return err
+	}
+	defer c.ExecContext(context.WithoutCancel(ctx), "ROLLBACK")
+	if err = fn(c); err != nil {
+		return err
+	}
+	_, err = c.ExecContext(ctx, "COMMIT")
+	return err
+}
+
 type row struct {
 	attempt, phase, checkpointID, ref, public string
 	device                                    sql.NullString
@@ -90,7 +109,7 @@ func device(ctx context.Context, c *sql.Conn, id string) (domain.DeviceBridgeDev
 }
 func (r *Repository) Load(ctx context.Context, owner string) (out bridgeactivation.Record, err error) {
 	out.OwnerID = owner
-	err = r.immediate(ctx, func(c *sql.Conn) error {
+	err = r.readOnly(ctx, func(c *sql.Conn) error {
 		v, e := read(ctx, c, owner)
 		if errors.Is(e, sql.ErrNoRows) {
 			return nil
@@ -249,7 +268,7 @@ func (r *Repository) ClaimActivation(ctx context.Context, owner string, id domai
 	return
 }
 func (r *Repository) VerifyClaim(ctx context.Context, owner string, id domain.DeviceBridgeDeviceID, generation int64) error {
-	return r.immediate(ctx, func(c *sql.Conn) error {
+	return r.readOnly(ctx, func(c *sql.Conn) error {
 		v, e := read(ctx, c, owner)
 		if e != nil && !errors.Is(e, sql.ErrNoRows) {
 			return e

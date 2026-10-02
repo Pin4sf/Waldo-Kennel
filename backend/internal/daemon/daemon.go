@@ -698,6 +698,9 @@ func Run() error {
 		}()
 	}
 
+	if bridge != nil {
+		go bridge.bootWhenServing(ctx, srv.Addr().String())
+	}
 	runErr := srv.Run(ctx)
 
 	// Both graceful shutdown paths (SIGTERM and POST /shutdown) funnel through
@@ -711,6 +714,7 @@ func Run() error {
 	// via defer) avoids the LIFO trap where a Stop() that blocks on ctx-cancel
 	// runs before the cancel: a non-signal exit path would hang otherwise.
 	stop()
+	bridge.close()
 	switchStopCtx, switchCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	if err := sessMgr.WaitAgentSwitchWorkers(switchStopCtx); err != nil {
 		log.Error("agent switch worker shutdown", "err", err)

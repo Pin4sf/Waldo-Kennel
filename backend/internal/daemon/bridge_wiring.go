@@ -3,42 +3,112 @@ package daemon
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/bridgeactivation"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/bridgeruntime"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/devicebridge"
-	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ownercommand"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/secretstore"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/activationrepo"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/bridgepersist"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
 )
 
 type bridgeWiring struct {
 	handler    http.Handler
 	controller *bridgeactivation.Controller
 	dbs        []*sql.DB
+	log        *slog.Logger
+	start      func(context.Context) error
+	stop       func(context.Context) error
+	closeOnce  sync.Once
+	bootOnce   sync.Once
+	runCtx     context.Context
+	cancel     context.CancelFunc
 }
 
 func (b *bridgeWiring) close() {
 	if b == nil {
 		return
 	}
-	for _, db := range b.dbs {
-		_ = db.Close()
-	}
+	b.closeOnce.Do(func() {
+		if b.cancel != nil {
+			b.cancel()
+		}
+		if b.stop != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if b.stop(ctx) != nil && b.log != nil {
+				b.log.Warn("local Waldo bridge revocation persistence or stop failed")
+			}
+		}
+		for _, db := range b.dbs {
+			_ = db.Close()
+		}
+	})
 }
 
-type notReadyFactory struct{}
+// Boot only starts an existing paired identity. Pending, blocked and revoked
+// records are not started or recovered, and never become new identities.
+func (b *bridgeWiring) boot(ctx context.Context) {
+	if b == nil {
+		return
+	}
+	b.bootOnce.Do(func() {
+		status, e := b.controller.Status(ctx)
+		if e != nil || status.DeviceID == "" || status.Phase == bridgeactivation.Recovery || !status.Ready {
+			return
+		}
+		if e = b.start(b.runCtx); e != nil && b.log != nil {
+			if errors.Is(e, bridgeactivation.ErrBlocked) || errors.Is(e, bridgeactivation.ErrNotReady) {
+				b.log.Info("local Waldo bridge boot activation unavailable")
+			} else {
+				b.log.Warn("local Waldo bridge boot activation stopped")
+			}
+		}
+	})
+}
 
-func (notReadyFactory) Ready(context.Context) error { return bridgeactivation.ErrNotReady }
-func (notReadyFactory) New(context.Context, string, domain.DeviceBridgeDevice, func(devicebridge.ConnectionState)) (bridgeactivation.Session, error) {
-	return nil, bridgeactivation.ErrNotReady
+type bridgeResponse struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *bridgeResponse) WriteHeader(status int) {
+	if w.status == 0 {
+		w.status = status
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+func (w *bridgeResponse) Write(raw []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return w.ResponseWriter.Write(raw)
+}
+func (b *bridgeWiring) afterPair(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capture := &bridgeResponse{ResponseWriter: w}
+		h.ServeHTTP(capture, r)
+		if r.Method == http.MethodPost && r.URL.Path == "/pair" && capture.status == http.StatusNoContent {
+			if b.start(b.runCtx) != nil && b.log != nil {
+				b.log.Info("local Waldo bridge paired; transport offline")
+			}
+		}
+	})
 }
 
 // Configuration failure degrades only the optional bridge, never the daemon.
 // The opener is injectable so flag-off proves zero storage access.
 func wireBridge(dataDir string, getenv func(string) string, authority *ownercommand.BridgeAuthority, log *slog.Logger, open func(string) (*sql.DB, error)) *bridgeWiring {
+	return wireBridgeWithFactory(dataDir, getenv, authority, log, open, func(deps bridgeruntime.Dependencies) bridgeactivation.Factory { return bridgeruntime.NewFactory(deps) })
+}
+func wireBridgeWithFactory(dataDir string, getenv func(string) string, authority *ownercommand.BridgeAuthority, log *slog.Logger, open func(string) (*sql.DB, error), makeFactory func(bridgeruntime.Dependencies) bridgeactivation.Factory) *bridgeWiring {
 	cfg, e := bridgeactivation.LoadLocalConfig(getenv)
 	if e != nil {
 		log.Warn("local Waldo bridge configuration invalid; bridge disabled")
@@ -51,7 +121,8 @@ func wireBridge(dataDir string, getenv func(string) string, authority *ownercomm
 		log.Warn("local Waldo bridge authority unavailable; bridge disabled")
 		return nil
 	}
-	b := &bridgeWiring{}
+	runCtx, cancel := context.WithCancel(context.Background())
+	b := &bridgeWiring{log: log, runCtx: runCtx, cancel: cancel}
 	fail := func() *bridgeWiring {
 		b.close()
 		log.Warn("local Waldo bridge dependencies unavailable; bridge disabled")
@@ -71,11 +142,55 @@ func wireBridge(dataDir string, getenv func(string) string, authority *ownercomm
 	if e != nil {
 		return fail()
 	}
-	c, e := bridgeactivation.New(cfg.OwnerID, cfg.Origin, activationrepo.New(repoDB), pairer, notReadyFactory{})
+	runtimeDB, e := open(dataDir)
+	if e != nil {
+		return fail()
+	}
+	b.dbs = append(b.dbs, runtimeDB)
+	keyDir := filepath.Join(dataDir, "secrets", "device-keys")
+	if e = os.MkdirAll(keyDir, 0700); e != nil {
+		return fail()
+	}
+	factory := makeFactory(bridgeruntime.Dependencies{Fence: activationrepo.New(repoDB), Keys: secretstore.NewDeviceKeyStore(dataDir), SessionStore: bridgepersist.New(runtimeDB), Logger: log, KeyDirectory: keyDir, ReadyProbe: func(ctx context.Context) error {
+		var n int
+		return repoDB.QueryRowContext(ctx, "SELECT count(*) FROM device_bridge_activations").Scan(&n)
+	}})
+	c, e := bridgeactivation.New(cfg.OwnerID, cfg.Origin, activationrepo.New(repoDB), pairer, factory)
 	if e != nil {
 		return fail()
 	}
 	b.controller = c
-	b.handler = bridgeactivation.Handler(c, func(r *http.Request) bool { return authority.Authenticate(r.Header.Get("Authorization")) })
+	b.start = c.Start
+	b.stop = c.Stop
+	b.handler = b.afterPair(bridgeactivation.Handler(c, func(r *http.Request) bool { return authority.Authenticate(r.Header.Get("Authorization")) }))
 	return b
+}
+
+// The listener is bound before Run, but the HTTP serve goroutine starts inside
+// Run. Boot activation waits for that local readiness endpoint, never Waldo.
+func (b *bridgeWiring) bootWhenServing(ctx context.Context, address string) {
+	client := &http.Client{Timeout: time.Second}
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		req, e := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+address+"/readyz", nil)
+		if e != nil {
+			return
+		}
+		res, e := client.Do(req)
+		if e == nil {
+			res.Body.Close()
+			if res.StatusCode == http.StatusOK {
+				b.boot(ctx)
+				return
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-b.runCtx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
