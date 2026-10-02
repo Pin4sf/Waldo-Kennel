@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { catalogFor, type AppLocale } from "../src/renderer/i18n";
 import { test, expect } from "@playwright/test";
-import { installFakeBridge } from "./support/fake-bridge";
+import { installFakeBridge, installFakeWaldoBridge } from "./support/fake-bridge";
 
 // No real code is used. All pairing states are labelled local fixtures.
 test("production Settings stays unavailable; keyboard opens/closes and no bridge traffic", async ({page}) => {
@@ -91,3 +91,20 @@ test("visual fixture matrix: every state, themes, sizes and shipped translations
  }
  writeFileSync(join(out,"manifest.json"),JSON.stringify(manifest,null,2));
 });
+
+for (const outcome of ["online","recovery_required"] as const) {
+ test(`production adapter with a fake waldoBridge: ${outcome === "online" ? "unpaired -> pair -> online" : "409 -> recovery_required"}`,async({page})=>{
+  await installFakeWaldoBridge(page,outcome);
+  const traffic:string[]=[];page.on("request",r=>{if(/\/devices\/(redeem|connect)|\/internal\/bridge/.test(r.url()))traffic.push(r.url());});
+  await page.goto("/work");await page.getByRole("button",{name:"Settings",exact:true}).click();await page.getByRole("button",{name:"Connect to Waldo",exact:true}).click();
+  await expect(page.getByText("Not paired",{exact:true})).toBeVisible();
+  const synthetic="A".repeat(43);await page.getByLabel("Waldo-issued code").fill(synthetic);await page.getByLabel("Device label").fill("Synthetic Mac");await page.getByRole("button",{name:"Connect",exact:true}).click();
+  await expect(page.getByText(outcome === "online" ? "Paired · Online":"Recovery required",{exact:true})).toBeVisible();
+  await expect(page.getByLabel("Waldo-issued code")).toHaveValue("");await expect(page.getByRole("button",{name:/retry|reset|pair.again/i})).toHaveCount(0);
+  expect(await page.evaluate(()=>JSON.stringify({...localStorage,...sessionStorage}))).not.toContain(synthetic);
+  expect(await page.evaluate(()=>(window as unknown as {__waldoCalls:unknown[]}).__waldoCalls)).toEqual([
+   {method:"status"},{method:"pair",input:{code:synthetic,label:"Synthetic Mac",capabilities:["machine_state_query","notify_local"]}},...(outcome === "online" ? [{method:"status"}]:[])
+  ]);
+  expect(traffic).toEqual([]);
+ });
+}

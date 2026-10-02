@@ -2807,5 +2807,7 @@
 	"settings.waldo.previewState": "プレビュー状態",
 	"settings.waldo.previewLocale": "プレビュー言語",
 	"settings.waldo.previewOpen": "設定を開く",
-	"settings.waldo.syntheticLabel": "合成 Mac"
+	"settings.waldo.syntheticLabel": "合成 Mac",
+	"settings.waldo.unknownAnswers": "接続済みですが、このビルドでは Mac はマシンの状態に関する問い合わせに unknown と回答し、ローカル通知が表示されたことを確認できません（delivery_unknown）。",
+	"settings.waldo.status.failedLive": "ペアリングを完了できませんでした。再試行する前に接続状態を確認してください。"
 }

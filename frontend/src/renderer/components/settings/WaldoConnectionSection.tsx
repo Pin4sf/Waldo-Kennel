@@ -3,17 +3,46 @@ import { useTranslation } from "react-i18next";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { SettingsSection } from "./SettingsSection";
-import { validWaldoCode, validWaldoLabel, type WaldoConnectionState } from "../../lib/waldo-connection";
+import { statusToState, pairResultToState, validWaldoCode, validWaldoLabel, type WaldoConnectionState } from "../../lib/waldo-connection";
 
-// Shipping Settings always renders unavailable, irrespective of preview URL,
-// persisted workspace data, transport status, or provider/account settings.
+// The optional preload is the only production boundary. Never retain a token.
 export function WaldoConnectionSection({ open = true, titleHidden = false }: { open?: boolean; titleHidden?: boolean }) {
- return <WaldoConnectionView state={{ kind: "unavailable" }} open={open} titleHidden={titleHidden} />;
+ const [state, setState] = useState<WaldoConnectionState>({kind:"unavailable"});
+ const generation = useRef(0);
+ const opening = useRef<Promise<WaldoConnectionState> | null>(null);
+ useEffect(() => {
+  const ticket = ++generation.current;
+  setState({kind:"unavailable"});
+  const bridge = window.kennel?.waldoBridge;
+  if (!open) opening.current = null;
+  if (open && bridge) {
+   // StrictMode replays effect setup; reuse this open's read, never poll.
+   opening.current ??= (async (): Promise<WaldoConnectionState> => {
+    try { return statusToState(await bridge.status()); }
+    catch { return {kind:"error",reason:"failed"}; }
+   })();
+   void opening.current.then(next => {
+    if (ticket === generation.current) setState(next);
+   });
+  }
+  return () => { generation.current++; };
+ }, [open]);
+ const pair = async (input: {code:string;label:string}): Promise<WaldoConnectionState> => {
+  const ticket = generation.current;
+  const bridge = window.kennel?.waldoBridge;
+  if (!open || !bridge) return {kind:"unavailable"};
+  const result = await bridge.pair({...input, capabilities:["machine_state_query","notify_local"]});
+  if (ticket !== generation.current) return {kind:"unavailable"};
+  if (!result.ok) return pairResultToState(result);
+  return statusToState(await bridge.status());
+ };
+ return <WaldoConnectionView state={state} action={pair} open={open} titleHidden={titleHidden} />;
 }
 
 // Pure presentation boundary for local development fixtures, not an API client.
-export function WaldoConnectionView({ state, previewAction, open = true, titleHidden = false }: {
+export function WaldoConnectionView({ state, action, previewAction, open = true, titleHidden = false }: {
  state: WaldoConnectionState;
+ action?: (input: { code: string; label: string }) => Promise<WaldoConnectionState>;
  previewAction?: (input: { code: string; label: string }) => Promise<WaldoConnectionState>;
  open?: boolean;
  titleHidden?: boolean;
@@ -35,16 +64,17 @@ export function WaldoConnectionView({ state, previewAction, open = true, titleHi
   return () => { generation.current++; };
  }, [open]);
  const current = pending ? { kind: "pairing" as const } : outcome ?? state;
- const canEnter = !!previewAction && current.kind === "unpaired" && open;
- const status = current.kind === "paired" ? current.transport : current.kind === "error" ? current.reason : current.kind;
+ const perform = action ?? previewAction;
+ const canEnter = !!perform && current.kind === "unpaired" && open;
+ const status = current.kind === "paired" ? current.transport : current.kind === "error" ? current.reason === "failed" && action ? "failedLive" : current.reason : current.kind;
  const submit = async (event: React.FormEvent) => {
   event.preventDefault();
-  if (!canEnter || busy.current || !previewAction) return;
+  if (!canEnter || busy.current || !perform) return;
   if (!validWaldoCode(code) || !validWaldoLabel(label)) { setInvalid(true); return; }
   busy.current = true; setPending(true); setInvalid(false);
   const ticket = generation.current;
   try {
-   const next = await previewAction({ code, label });
+   const next = await perform({ code, label });
    if (ticket === generation.current) setOutcome(next);
   } catch {
    // Never expose an exception that might contain a code or remote response.
@@ -65,6 +95,7 @@ export function WaldoConnectionView({ state, previewAction, open = true, titleHi
      {current.label && <p>{current.label}</p>}
      {current.deviceId && <p>{current.deviceId}</p>}
     </div>}
+    {current.kind === "paired" && <p className="mt-2 text-muted-foreground">{t("settings.waldo.unknownAnswers")}</p>}
    </div>
    <div className="text-muted-foreground">
     <p>{t("settings.waldo.scope")}</p>

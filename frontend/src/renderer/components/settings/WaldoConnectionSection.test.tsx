@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { act, fireEvent, render, screen, waitFor, cleanup } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -71,3 +72,72 @@ describe("inactive Waldo settings", () => {
   expect(screen.getByText(catalog["settings.waldo.status.unavailable"])).toBeInTheDocument();
  });
 });
+
+function fakeLive(statusResult: import("../../../main/waldo-bridge-handler").WaldoBridgeStatusResult = {ok:true,state:"unpaired",ready:true}) {
+ const bridge = {status:vi.fn(async()=>statusResult),pair:vi.fn<NonNullable<NonNullable<Window["kennel"]>["waldoBridge"]>["pair"]>().mockResolvedValue({ok:true})};
+ vi.stubGlobal("kennel",{waldoBridge:bridge});return bridge;
+}
+function enter() {
+ fireEvent.change(screen.getByLabelText("Waldo-issued code"),{target:{value:code}});
+ fireEvent.change(screen.getByLabelText("Device label"),{target:{value:"Synthetic Mac"}});
+ return screen.getByRole("button",{name:"Connect"}).closest("form")!;
+}
+async function opened() { await waitFor(()=>expect(screen.getByLabelText("Waldo-issued code")).toBeEnabled()); }
+
+describe("production Waldo adapter",()=>{
+ it("shows unavailable and makes zero bridge calls when waldoBridge is absent",()=>{
+  vi.stubGlobal("kennel",{});const fetch=vi.fn();vi.stubGlobal("fetch",fetch);view(<WaldoConnectionSection/>);
+  expect(screen.getByLabelText("Waldo-issued code")).toBeDisabled();expect(fetch).not.toHaveBeenCalled();
+ });
+ it("makes exactly one status call when opened and none when closed, with no timers",async()=>{
+  vi.useFakeTimers();try {
+   const bridge=fakeLive();const wrap=(open:boolean)=><I18nextProvider i18n={createAppI18n()}><WaldoConnectionSection open={open}/></I18nextProvider>;
+   const r=render(wrap(false));expect(bridge.status).not.toHaveBeenCalled();
+   await act(async()=>r.rerender(wrap(true)));expect(bridge.status).toHaveBeenCalledTimes(1);
+   await act(async()=>vi.advanceTimersByTime(3600000));expect(bridge.status).toHaveBeenCalledTimes(1);
+   r.rerender(wrap(false));expect(bridge.status).toHaveBeenCalledTimes(1);expect(vi.getTimerCount()).toBe(0);
+  } finally {vi.useRealTimers();}
+ });
+ it("pair sends exactly {code,label,capabilities:[machine_state_query,notify_local]} and nothing else",async()=>{
+  const bridge=fakeLive();bridge.status.mockResolvedValueOnce({ok:true,state:"unpaired",ready:true}).mockResolvedValue({ok:true,state:"online",ready:true});
+  view(<WaldoConnectionSection/>);await opened();fireEvent.submit(enter());
+  await waitFor(()=>expect(bridge.pair).toHaveBeenCalledTimes(1));expect(bridge.pair.mock.calls[0]).toStrictEqual([{code,label:"Synthetic Mac",capabilities:["machine_state_query","notify_local"]}]);
+  await waitFor(()=>expect(screen.getByText("Paired · Online")).toBeInTheDocument());expect(bridge.status).toHaveBeenCalledTimes(2);expect(screen.queryByTestId("waldo-preview-label")).not.toBeInTheDocument();
+ });
+ it("refreshes status once after a successful pair and does not assume paired from the pair reply",async()=>{
+  const bridge=fakeLive();bridge.status.mockResolvedValueOnce({ok:true,state:"unpaired",ready:true}).mockResolvedValue({ok:true,state:"pairing",ready:true});
+  view(<WaldoConnectionSection/>);await opened();fireEvent.submit(enter());await waitFor(()=>expect(bridge.status).toHaveBeenCalledTimes(2));
+  expect(screen.getByText("Pairing…")).toBeInTheDocument();expect(screen.queryByText(/Paired ·/)).not.toBeInTheDocument();
+ });
+ it("409 shows recovery_required with no retry, reset or pair-again control and sends no second request",async()=>{
+  const bridge=fakeLive();bridge.pair.mockResolvedValue({ok:false,reason:"recovery_required"});view(<WaldoConnectionSection/>);await opened();fireEvent.submit(enter());
+  await waitFor(()=>expect(screen.getByText("Recovery required")).toBeInTheDocument());expect(screen.queryByRole("button",{name:/retry|reset|pair.again/i})).not.toBeInTheDocument();
+  fireEvent.submit(screen.getByRole("button",{name:"Connect"}).closest("form")!);expect(bridge.pair).toHaveBeenCalledTimes(1);expect(bridge.status).toHaveBeenCalledTimes(1);
+ });
+ it.each(["success","recovery_required","unavailable","failed","exception"])("clears the code after %s; never stores/logs it",async reason=>{
+  const bridge=fakeLive();const store=vi.spyOn(Storage.prototype,"setItem");const spies=[vi.spyOn(console,"log"),vi.spyOn(console,"warn"),vi.spyOn(console,"error")];
+  if(reason==="exception")bridge.pair.mockRejectedValue(new Error(code));else if(reason!=="success")bridge.pair.mockResolvedValue({ok:false,reason:reason as "failed"|"unavailable"|"recovery_required"});
+  view(<WaldoConnectionSection/>);await opened();fireEvent.submit(enter());await waitFor(()=>expect(screen.getByLabelText("Waldo-issued code")).toHaveValue(""));
+  expect(store).not.toHaveBeenCalled();for(const spy of spies)expect(JSON.stringify(spy.mock.calls)).not.toContain(code);
+  expect(JSON.stringify({...localStorage,...sessionStorage})).not.toContain(code);expect(document.body.textContent).not.toContain(code);expect(document.body.innerHTML).not.toContain(code);
+  if(reason==="exception" || reason==="failed")expect(screen.getByText("Could not complete pairing. Check the connection status before trying again.")).toBeInTheDocument();
+ });
+ it("blocks double submit with a single pair call",async()=>{
+  const bridge=fakeLive();let finish!:(v:{ok:true})=>void;bridge.pair.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));view(<WaldoConnectionSection/>);await opened();const form=enter();fireEvent.submit(form);fireEvent.submit(form);expect(bridge.pair).toHaveBeenCalledTimes(1);await act(async()=>finish({ok:true}));
+ });
+ it("ignores a pair result that settles after the section is closed",async()=>{
+  const bridge=fakeLive();let finish!:(v:{ok:true})=>void;bridge.pair.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
+  const wrap=(open:boolean)=><I18nextProvider i18n={createAppI18n()}><WaldoConnectionSection open={open}/></I18nextProvider>;
+  const r=render(wrap(true));await opened();fireEvent.submit(enter());r.rerender(wrap(false));expect(screen.getByLabelText("Waldo-issued code")).toHaveValue("");await act(async()=>finish({ok:true}));expect(bridge.status).toHaveBeenCalledTimes(1);expect(screen.queryByText(/Paired ·/)).not.toBeInTheDocument();
+ });
+ it.each(["online","offline","unpaired"])("shows the unknown / delivery_unknown copy when paired and not otherwise: %s",async state=>{
+  fakeLive({ok:true,state,ready:true});view(<WaldoConnectionSection/>);await waitFor(()=>expect(screen.getByText(state === "unpaired" ? "Not paired" : `Paired · ${state === "online" ? "Online":"Offline"}`)).toBeInTheDocument());expect(screen.queryByText(/answers machine-state queries as unknown/)!==null).toBe(state!=="unpaired");
+ });
+ it.each([{ok:false,reason:"unavailable"},{ok:true,state:"unpaired",ready:false},{ok:true,state:"future",ready:true}] as const)("no request and no pair call while the state is unavailable or ready is false: %j",async result=>{
+  const bridge=fakeLive(result);view(<WaldoConnectionSection/>);await act(async()=>{});expect(screen.getByLabelText("Waldo-issued code")).toBeDisabled();fireEvent.submit(screen.getByRole("button",{name:"Connect"}).closest("form")!);expect(bridge.pair).not.toHaveBeenCalled();expect(bridge.status).toHaveBeenCalledTimes(1);
+ });
+});
+
+ it("makes one status call through StrictMode effect replay",async()=>{
+  const bridge=fakeLive();view(<StrictMode><WaldoConnectionSection/></StrictMode>);await opened();expect(bridge.status).toHaveBeenCalledTimes(1);
+ });

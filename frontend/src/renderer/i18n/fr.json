@@ -2823,5 +2823,7 @@
 	"settings.waldo.previewState": "État de l’aperçu",
 	"settings.waldo.previewLocale": "Langue de l’aperçu",
 	"settings.waldo.previewOpen": "Ouvrir les paramètres",
-	"settings.waldo.syntheticLabel": "Mac synthétique"
+	"settings.waldo.syntheticLabel": "Mac synthétique",
+	"settings.waldo.unknownAnswers": "Connecté, mais dans cette version le Mac répond unknown aux requêtes sur l’état de la machine et ne peut pas confirmer qu’une notification locale a été affichée (delivery_unknown).",
+	"settings.waldo.status.failedLive": "Impossible de terminer l’association. Vérifiez l’état de la connexion avant de réessayer."
 }
