@@ -80,10 +80,21 @@ type row struct {
 	generation                                int64
 }
 
+// read returns the owner's live activation, or else its newest revoked one.
+// Revoked rows are immutable audit; only the live row (revoked=0) is mutable.
 func read(ctx context.Context, c *sql.Conn, owner string) (row, error) {
 	var v row
-	err := c.QueryRowContext(ctx, `SELECT attempt,phase,checkpoint_device_id,checkpoint_key_custody_ref,checkpoint_public_key,device_id,revoked,claim_generation FROM device_bridge_activations WHERE owner_id=?`, owner).Scan(&v.attempt, &v.phase, &v.checkpointID, &v.ref, &v.public, &v.device, &v.revoked, &v.generation)
+	err := c.QueryRowContext(ctx, `SELECT attempt,phase,checkpoint_device_id,checkpoint_key_custody_ref,checkpoint_public_key,device_id,revoked,claim_generation FROM device_bridge_activations WHERE owner_id=? ORDER BY revoked ASC, activation_id DESC LIMIT 1`, owner).Scan(&v.attempt, &v.phase, &v.checkpointID, &v.ref, &v.public, &v.device, &v.revoked, &v.generation)
 	return v, err
+}
+
+// revokedIdentity reports whether this exact device identity was ever revoked
+// for owner. The fence is per identity: a revoked device id never pairs, claims
+// or starts again, while the owner may pair a new identity.
+func revokedIdentity(ctx context.Context, c *sql.Conn, owner string, id domain.DeviceBridgeDeviceID) (bool, error) {
+	var n int
+	err := c.QueryRowContext(ctx, `SELECT count(*) FROM device_bridge_activations WHERE owner_id=? AND device_id=? AND revoked=1`, owner, id).Scan(&n)
+	return n != 0, err
 }
 func device(ctx context.Context, c *sql.Conn, id string) (domain.DeviceBridgeDevice, error) {
 	var d domain.DeviceBridgeDevice
@@ -140,14 +151,13 @@ func (r *Repository) Reserve(ctx context.Context, owner string) (out bridgeactiv
 	}
 	out = bridgeactivation.Record{OwnerID: owner, Attempt: base64.RawURLEncoding.EncodeToString(token[:]), Phase: "pending"}
 	err = r.immediate(ctx, func(c *sql.Conn) error {
+		// A revoked newest row does not reserve the owner: re-pairing inserts a
+		// new activation for a new identity and leaves the revoked row intact.
 		v, e := read(ctx, c, owner)
-		if e == nil {
-			if v.revoked {
-				return fmt.Errorf("reserve: %w", ErrRevoked)
-			}
+		if e == nil && !v.revoked {
 			return fmt.Errorf("reserve: %w", ErrReservationActive)
 		}
-		if !errors.Is(e, sql.ErrNoRows) {
+		if e != nil && !errors.Is(e, sql.ErrNoRows) {
 			return e
 		}
 		var n int
@@ -158,7 +168,9 @@ func (r *Repository) Reserve(ctx context.Context, owner string) (out bridgeactiv
 			return fmt.Errorf("reserve: %w", ErrReservationActive)
 		}
 		now := time.Now().UTC()
-		_, e = c.ExecContext(ctx, `INSERT INTO device_bridge_activations(owner_id,attempt,phase,created_at,updated_at) VALUES(?,?,'pending',?,?)`, owner, out.Attempt, now, now)
+		// The new generation continues past every earlier activation for owner, so
+		// no held claim of a revoked identity can ever match the new one.
+		_, e = c.ExecContext(ctx, `INSERT INTO device_bridge_activations(owner_id,attempt,phase,claim_generation,created_at,updated_at) VALUES(?,?,'pending',(SELECT COALESCE(MAX(claim_generation),0) FROM device_bridge_activations WHERE owner_id=?),?,?)`, owner, out.Attempt, owner, now, now)
 		return e
 	})
 	if err != nil {
@@ -183,7 +195,7 @@ func (r *Repository) Block(ctx context.Context, owner, attempt string, cp *devic
 			v.ref = cp.KeyCustodyRef
 			v.public = cp.PublicKey
 		}
-		_, e = c.ExecContext(ctx, `UPDATE device_bridge_activations SET phase='blocked',checkpoint_device_id=?,checkpoint_key_custody_ref=?,checkpoint_public_key=?,updated_at=? WHERE owner_id=?`, v.checkpointID, v.ref, v.public, time.Now().UTC(), owner)
+		_, e = c.ExecContext(ctx, `UPDATE device_bridge_activations SET phase='blocked',checkpoint_device_id=?,checkpoint_key_custody_ref=?,checkpoint_public_key=?,updated_at=? WHERE owner_id=? AND revoked=0`, v.checkpointID, v.ref, v.public, time.Now().UTC(), owner)
 		return e
 	})
 }
@@ -214,21 +226,21 @@ func (r *Repository) Complete(ctx context.Context, owner, attempt string, d doma
 		} else if existing.OwnerID != d.OwnerID || existing.PublicKey != d.PublicKey || existing.KeyCustodyRef != d.KeyCustodyRef || existing.ContractVersion != d.ContractVersion || !slices.Equal(existing.CapabilityClasses, d.CapabilityClasses) || existing.State != domain.DeviceBridgeStatePaired {
 			return domain.ErrDeviceBridgeConflict
 		}
-		_, e = c.ExecContext(ctx, `UPDATE device_bridge_activations SET phase='paired',attempt='',device_id=?,updated_at=? WHERE owner_id=?`, d.DeviceID, time.Now().UTC(), owner)
+		_, e = c.ExecContext(ctx, `UPDATE device_bridge_activations SET phase='paired',attempt='',device_id=?,updated_at=? WHERE owner_id=? AND revoked=0`, d.DeviceID, time.Now().UTC(), owner)
 		return e
 	})
 }
 func (r *Repository) Revoke(ctx context.Context, owner string, id domain.DeviceBridgeDeviceID) error {
 	return r.immediate(ctx, func(c *sql.Conn) error {
+		if done, e := revokedIdentity(ctx, c, owner, id); e != nil || done {
+			return e
+		}
 		v, e := read(ctx, c, owner)
 		if e != nil && !errors.Is(e, sql.ErrNoRows) {
 			return e
 		}
-		if e != nil || !v.device.Valid || v.device.String != string(id) {
+		if e != nil || v.revoked || !v.device.Valid || v.device.String != string(id) {
 			return domain.ErrDeviceBridgeConflict
-		}
-		if v.revoked {
-			return nil
 		}
 		d, e := device(ctx, c, string(id))
 		if e != nil {
@@ -246,7 +258,7 @@ func (r *Repository) Revoke(ctx context.Context, owner string, id domain.DeviceB
 				return e
 			}
 		}
-		_, e = c.ExecContext(ctx, `UPDATE device_bridge_activations SET phase='revoked',attempt='',revoked=1,claim_generation=claim_generation+1,updated_at=? WHERE owner_id=?`, now, owner)
+		_, e = c.ExecContext(ctx, `UPDATE device_bridge_activations SET phase='revoked',attempt='',revoked=1,claim_generation=claim_generation+1,updated_at=? WHERE owner_id=? AND revoked=0`, now, owner)
 		return e
 	})
 }
@@ -256,11 +268,11 @@ func (r *Repository) ClaimActivation(ctx context.Context, owner string, id domai
 		if !errors.Is(e, sql.ErrNoRows) {
 			return e
 		}
-		v, e := read(ctx, c, owner)
-		if e != nil && !errors.Is(e, sql.ErrNoRows) {
+		revoked, e := revokedIdentity(ctx, c, owner, id)
+		if e != nil {
 			return e
 		}
-		if v.revoked {
+		if revoked {
 			return fmt.Errorf("claim: %w", ErrRevoked)
 		}
 		return fmt.Errorf("claim: %w", ErrNotPaired)
@@ -269,14 +281,18 @@ func (r *Repository) ClaimActivation(ctx context.Context, owner string, id domai
 }
 func (r *Repository) VerifyClaim(ctx context.Context, owner string, id domain.DeviceBridgeDeviceID, generation int64) error {
 	return r.readOnly(ctx, func(c *sql.Conn) error {
+		revoked, e := revokedIdentity(ctx, c, owner, id)
+		if e != nil {
+			return e
+		}
+		if revoked {
+			return fmt.Errorf("verify: %w", ErrRevoked)
+		}
 		v, e := read(ctx, c, owner)
 		if e != nil && !errors.Is(e, sql.ErrNoRows) {
 			return e
 		}
-		if v.revoked {
-			return fmt.Errorf("verify: %w", ErrRevoked)
-		}
-		if e != nil || v.phase != "paired" || !v.device.Valid || v.device.String != string(id) || v.generation != generation || generation < 1 {
+		if e != nil || v.revoked || v.phase != "paired" || !v.device.Valid || v.device.String != string(id) || v.generation != generation || generation < 1 {
 			return fmt.Errorf("verify: %w", ErrStaleClaim)
 		}
 		d, e := device(ctx, c, string(id))
@@ -312,7 +328,7 @@ func (r *Repository) Checkpoint(ctx context.Context, owner, attempt string, cp d
 			}
 			return nil
 		}
-		_, e = c.ExecContext(ctx, `UPDATE device_bridge_activations SET checkpoint_key_custody_ref=?,checkpoint_public_key=?,updated_at=? WHERE owner_id=?`, cp.KeyCustodyRef, cp.PublicKey, time.Now().UTC(), owner)
+		_, e = c.ExecContext(ctx, `UPDATE device_bridge_activations SET checkpoint_key_custody_ref=?,checkpoint_public_key=?,updated_at=? WHERE owner_id=? AND revoked=0`, cp.KeyCustodyRef, cp.PublicKey, time.Now().UTC(), owner)
 		return e
 	})
 }

@@ -79,22 +79,28 @@ func snapshot(t *testing.T, db *sql.DB) []string {
 	t.Helper()
 	var out []string
 	for _, table := range []string{"device_bridge_activations", "device_bridge_devices"} {
-		rows, e := db.Query(`SELECT * FROM ` + table + ` ORDER BY 1`)
-		must(t, e)
-		cols, e := rows.Columns()
-		must(t, e)
-		for rows.Next() {
-			values := make([]any, len(cols))
-			ptrs := make([]any, len(cols))
-			for i := range values {
-				ptrs[i] = &values[i]
-			}
-			must(t, rows.Scan(ptrs...))
-			out = append(out, fmt.Sprint(values))
-		}
-		must(t, rows.Err())
-		must(t, rows.Close())
+		out = append(out, rowsOf(t, db, `SELECT * FROM `+table+` ORDER BY 1`)...)
 	}
+	return out
+}
+func rowsOf(t *testing.T, db *sql.DB, query string, args ...any) []string {
+	t.Helper()
+	var out []string
+	rows, e := db.Query(query, args...)
+	must(t, e)
+	cols, e := rows.Columns()
+	must(t, e)
+	for rows.Next() {
+		values := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range values {
+			ptrs[i] = &values[i]
+		}
+		must(t, rows.Scan(ptrs...))
+		out = append(out, fmt.Sprint(values))
+	}
+	must(t, rows.Err())
+	must(t, rows.Close())
 	return out
 }
 func TestReserveConcurrentTwoConnectionsOneWinner(t *testing.T) {
@@ -317,16 +323,110 @@ func TestRevokedNeverResurrected(t *testing.T) {
 	d := seed(t, r, "owner")
 	must(t, r.Revoke(bg, "owner", d.DeviceID))
 	before := snapshot(t, r.db)
-	_, e := r.Reserve(bg, "owner")
-	want(t, e, ErrRevoked)
 	want(t, r.Complete(bg, "owner", "old", d), ErrAttemptMismatch)
-	for _, q := range []string{`UPDATE device_bridge_activations SET phase='paired',revoked=0`, `UPDATE device_bridge_activations SET revoked=0`, `UPDATE device_bridge_activations SET claim_generation=0`, `DELETE FROM device_bridge_activations`, `UPDATE device_bridge_activations SET owner_id='other'`, `UPDATE device_bridge_activations SET created_at='2000-01-01'`, `UPDATE device_bridge_activations SET device_id='other'`} {
-		if _, e = r.db.Exec(q); e == nil {
+	for _, q := range []string{`UPDATE device_bridge_activations SET phase='paired',revoked=0`, `UPDATE device_bridge_activations SET revoked=0`, `UPDATE device_bridge_activations SET claim_generation=0`, `DELETE FROM device_bridge_activations`, `UPDATE device_bridge_activations SET owner_id='other'`, `UPDATE device_bridge_activations SET created_at='2000-01-01'`, `UPDATE device_bridge_activations SET device_id='other'`, `UPDATE device_bridge_activations SET checkpoint_device_id='forged'`, `UPDATE device_bridge_activations SET activation_id=activation_id+100`, `INSERT INTO device_bridge_activations(owner_id,phase,device_id,created_at,updated_at) VALUES('owner','paired','dev-owner','2026-01-01','2026-01-01')`, `INSERT INTO device_bridge_activations(owner_id,phase,device_id,created_at,updated_at) VALUES('other','paired','dev-owner','2026-01-01','2026-01-01')`} {
+		if _, e := r.db.Exec(q); e == nil {
 			t.Fatalf("accepted %s", q)
 		}
 	}
 	if !reflect.DeepEqual(before, snapshot(t, r.db)) {
 		t.Fatal("changed revoked row")
+	}
+}
+
+// Contract v0.2.3: after owner revocation the daemon shows unpaired and
+// re-pairing mints a new device identity; the revoked identity stays fenced.
+func TestRepairAfterRevokeMintsNewIdentity(t *testing.T) {
+	a, b := repos(t)
+	old := seed(t, a, "owner")
+	_, e := a.db.Exec(`UPDATE device_bridge_activations SET checkpoint_device_id='audit',checkpoint_key_custody_ref='ref',checkpoint_public_key='pub' WHERE owner_id='owner'`)
+	must(t, e)
+	oldGen, e := a.ClaimActivation(bg, "owner", old.DeviceID)
+	must(t, e)
+	must(t, b.Revoke(bg, "owner", old.DeviceID))
+	revokedRow := `SELECT * FROM device_bridge_activations WHERE device_id=?`
+	revokedAudit := rowsOf(t, a.db, revokedRow, old.DeviceID)
+	v := reserve(t, b, "owner")
+	fresh := pairedDevice("owner")
+	fresh.DeviceID = "dev-owner-2"
+	fresh.PublicKey, fresh.KeyCustodyRef = "public-2", "opaque-ref-2"
+	must(t, b.Complete(bg, "owner", v.Attempt, fresh))
+	if got := load(t, a, "owner"); got.Phase != "paired" || got.Device.DeviceID != fresh.DeviceID || got.Device.State != domain.DeviceBridgeStatePaired || got.Checkpoint != nil {
+		t.Fatalf("re-pair not loaded: %+v", got)
+	}
+	gen, e := a.ClaimActivation(bg, "owner", fresh.DeviceID)
+	must(t, e)
+	if gen <= oldGen+1 {
+		t.Fatalf("generation moved back: %d after %d", gen, oldGen)
+	}
+	must(t, b.VerifyClaim(bg, "owner", fresh.DeviceID, gen))
+	want(t, b.VerifyClaim(bg, "owner", fresh.DeviceID, oldGen), ErrStaleClaim)
+	for _, r := range []*Repository{a, b} {
+		_, e = r.ClaimActivation(bg, "owner", old.DeviceID)
+		want(t, e, ErrRevoked)
+		want(t, r.VerifyClaim(bg, "owner", old.DeviceID, oldGen), ErrRevoked)
+		must(t, r.Revoke(bg, "owner", old.DeviceID))
+	}
+	var audit string
+	must(t, a.db.QueryRow(`SELECT checkpoint_device_id FROM device_bridge_activations WHERE owner_id='owner' AND device_id=? AND revoked=1`, old.DeviceID).Scan(&audit))
+	if audit != "audit" {
+		t.Fatal("audit lost")
+	}
+	if len(revokedAudit) != 1 || !reflect.DeepEqual(revokedAudit, rowsOf(t, a.db, revokedRow, old.DeviceID)) {
+		t.Fatal("revoked audit row changed by re-pair")
+	}
+	// Even a forged device row cannot bring the revoked identity back.
+	must(t, b.Revoke(bg, "owner", fresh.DeviceID))
+	v = reserve(t, a, "owner")
+	_, e = a.db.Exec(`UPDATE device_bridge_devices SET state='paired',revoked_at=NULL WHERE device_id=?`, old.DeviceID)
+	must(t, e)
+	if a.Complete(bg, "owner", v.Attempt, old) == nil {
+		t.Fatal("revoked identity paired again")
+	}
+	_, e = b.ClaimActivation(bg, "owner", old.DeviceID)
+	want(t, e, ErrRevoked)
+	want(t, b.VerifyClaim(bg, "owner", old.DeviceID, oldGen), ErrRevoked)
+	var revoked int
+	must(t, a.db.QueryRow(`SELECT count(*) FROM device_bridge_activations WHERE owner_id='owner' AND revoked=1`).Scan(&revoked))
+	if revoked != 2 {
+		t.Fatalf("revoked rows retained %d", revoked)
+	}
+}
+func TestReserveAfterRevokeConcurrentOneWinner(t *testing.T) {
+	a, b := repos(t)
+	d := seed(t, a, "owner")
+	must(t, a.Revoke(bg, "owner", d.DeviceID))
+	var wins atomic.Int32
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	errs := make(chan error, 32)
+	for _, r := range []*Repository{a, b} {
+		for i := 0; i < 16; i++ {
+			wg.Add(1)
+			go func(r *Repository) {
+				defer wg.Done()
+				<-start
+				if _, e := r.Reserve(bg, "owner"); e == nil {
+					wins.Add(1)
+				} else if !errors.Is(e, ErrReservationActive) {
+					errs <- e
+				}
+			}(r)
+		}
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for e := range errs {
+		t.Error(e)
+	}
+	if wins.Load() != 1 {
+		t.Fatalf("winners %d", wins.Load())
+	}
+	var live, revoked int
+	must(t, a.db.QueryRow(`SELECT count(*) FILTER (WHERE revoked=0), count(*) FILTER (WHERE revoked=1) FROM device_bridge_activations WHERE owner_id='owner'`).Scan(&live, &revoked))
+	if live != 1 || revoked != 1 {
+		t.Fatal(live, revoked)
 	}
 }
 func TestRevokeWrongDeviceChangesNothing(t *testing.T) {
@@ -426,4 +526,81 @@ type testFactory struct{}
 func (testFactory) Ready(context.Context) error { return nil }
 func (testFactory) New(context.Context, string, domain.DeviceBridgeDevice, func(devicebridge.ConnectionState)) (bridgeactivation.Session, error) {
 	return nil, bridgeactivation.ErrNotReady
+}
+
+// fencedFactory gates New on the durable claim, like bridgeruntime.Factory.
+type fencedFactory struct {
+	repo   *Repository
+	reject bool
+}
+
+func (fencedFactory) Ready(context.Context) error { return nil }
+func (f fencedFactory) New(ctx context.Context, _ string, d domain.DeviceBridgeDevice, state func(devicebridge.ConnectionState)) (bridgeactivation.Session, error) {
+	if _, e := f.repo.ClaimActivation(ctx, d.OwnerID, d.DeviceID); e != nil {
+		return nil, e
+	}
+	return rejectingSession{state: state, reject: f.reject}, nil
+}
+
+type rejectingSession struct {
+	state  func(devicebridge.ConnectionState)
+	reject bool
+}
+
+func (s rejectingSession) Run(ctx context.Context) error {
+	s.state(devicebridge.ConnectionOnline)
+	if s.reject {
+		s.state(devicebridge.ConnectionUnpaired)
+	}
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+// Reproduces the 2026-10-07 acceptance: pair, online, owner revoke (401),
+// unpaired, then a fresh code must reserve and redeem a new identity.
+func TestControllerRepairAfterOwnerRevoke(t *testing.T) {
+	a, b := connections(t, t.TempDir())
+	r := New(a)
+	var minted atomic.Int32
+	p := fakePairer{fn: func(ctx context.Context, req devicebridge.PairRequest) (domain.DeviceBridgeDevice, error) {
+		d := pairedDevice(req.OwnerID)
+		n := minted.Add(1)
+		d.DeviceID = domain.DeviceBridgeDeviceID(fmt.Sprintf("dev-%d", n))
+		d.PublicKey, d.KeyCustodyRef = fmt.Sprintf("public-%d", n), fmt.Sprintf("ref-%d", n)
+		d.CapabilityClasses = req.Capabilities
+		return d, nil
+	}}
+	caps := []string{"machine_state_query", "notify_local"}
+	c, e := bridgeactivation.New("owner", "https://example.test", r, p, fencedFactory{repo: r, reject: true})
+	must(t, e)
+	must(t, c.Pair(bg, strings.Repeat("A", 43), "Mac", caps))
+	first := load(t, r, "owner").Device
+	must(t, c.Start(bg))
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		status, e := c.Status(bg)
+		must(t, e)
+		if status.Phase == bridgeactivation.Unpaired {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("not unpaired: %+v", status)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	must(t, c.Stop(bg))
+	// A recreated controller on another connection pairs a fresh identity.
+	other := New(b)
+	c2, e := bridgeactivation.New("owner", "https://example.test", other, p, fencedFactory{repo: other})
+	must(t, e)
+	must(t, c2.Pair(bg, strings.Repeat("B", 42)+"A", "Mac", caps))
+	status, e := c2.Status(bg)
+	must(t, e)
+	if status.Phase != bridgeactivation.Offline || status.DeviceID == "" || status.DeviceID == string(first.DeviceID) {
+		t.Fatalf("re-pair status %+v", status)
+	}
+	_, e = fencedFactory{repo: other}.New(bg, "https://example.test", first, func(devicebridge.ConnectionState) {})
+	want(t, e, ErrRevoked)
+	must(t, c2.Start(bg))
+	must(t, c2.Stop(bg))
 }
